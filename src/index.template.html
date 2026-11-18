@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caro-Kann & QG Coach</title>
+<link rel="icon" type="image/svg+xml" href="/*FAVICON*/">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#2c5a4b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/*CSS*/
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <span class="mark" aria-hidden="true">/*LOGO30*/</span>
+    <span class="title"><b id="top-title">Stockfish</b><span><i class="pulse" id="thinking" aria-hidden="true"></i><span id="top-sub">About 1200</span></span></span>
+    <button class="icon-btn" id="restart" aria-label="Restart game"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+    <button class="icon-btn" id="open-settings" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+  </header>
+  <section id="view-play" class="view" aria-label="Play">
+    <div class="main">
+      <div id="play-board"></div>
+    </div>
+    <div class="side">
+      <div class="coach" id="coach" aria-live="polite"></div>
+      <button class="plan-row" id="plan-row" hidden></button>
+    </div>
+  </section>
+  <section id="view-practice" class="view" aria-label="Practice"></section>
+  <section id="view-review" class="view" aria-label="Review"></section>
+</main>
+<div class="tabs">
+  <nav aria-label="Main">
+    <button class="tab" data-v="play"><svg viewBox="5 6 36 36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21"/><path d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3"/></svg>Play</button>
+    <button class="tab" data-v="practice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>Practice<span class="badge" id="badge-practice" hidden></span></button>
+    <button class="tab" data-v="review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-6 4 3 7-9"/><path d="M4 21h16"/></svg>Review</button>
+  </nav>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Panel" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>if (!window.Chess) document.write('<script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.js"><\/script>');</script>
+<script>
+/*JS*/
+</script>
+</body>
+</html>

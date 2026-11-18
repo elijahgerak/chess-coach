@@ -1,0 +1,15 @@
+{
+  "name": "chess-coach",
+  "private": true,
+  "description": "Caro-Kann & Queen's Gambit coach: play Stockfish, get plain-language feedback on every move.",
+  "scripts": {
+    "build": "python3 build.py",
+    "test": "node tests/data.test.js && node tests/coach.test.js",
+    "test:book": "node tests/book.check.js",
+    "serve": "python3 build.py && cd site && python3 -m http.server 8765",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "devDependencies": {
+    "chess.js": "0.10.3"
+  }
+}
