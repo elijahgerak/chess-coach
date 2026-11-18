@@ -34,6 +34,7 @@
   --t-warn: #c08a00;
   --t-bad: #e0701f;
   --t-worse: #e0433a;
+  --plan: #6d5ce8;
   --grain-op: .09;
   --shadow: 0 1px 2px rgba(18, 21, 19, .06), 0 8px 24px -12px rgba(18, 21, 19, .18);
   --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -45,14 +46,14 @@
   :root:not([data-theme="light"]) {
     --paper: #0d0f0e; --raised: #171a18; --ink: #f1f3f0; --ink-2: #959b96; --rule: #252925;
     --accent: #f1f3f0; --on-accent: #0d0f0e; --sq-l: #c9d1bf; --sq-d: #66845f;
-    --t-good: #4ade80; --t-ok: #9cc3a8; --t-book: #d6b77e; --t-warn: #f5c542; --t-bad: #fb923c; --t-worse: #f87171;
+    --t-good: #4ade80; --t-ok: #9cc3a8; --t-book: #d6b77e; --t-warn: #f5c542; --t-bad: #fb923c; --t-worse: #f87171; --plan: #a99bff;
     --grain-op: .12; --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -12px rgba(0, 0, 0, .6); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --paper: #0d0f0e; --raised: #171a18; --ink: #f1f3f0; --ink-2: #959b96; --rule: #252925;
   --accent: #f1f3f0; --on-accent: #0d0f0e; --sq-l: #c9d1bf; --sq-d: #66845f;
-  --t-good: #4ade80; --t-ok: #9cc3a8; --t-book: #d6b77e; --t-warn: #f5c542; --t-bad: #fb923c; --t-worse: #f87171;
+  --t-good: #4ade80; --t-ok: #9cc3a8; --t-book: #d6b77e; --t-warn: #f5c542; --t-bad: #fb923c; --t-worse: #f87171; --plan: #a99bff;
   --grain-op: .12; --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -12px rgba(0, 0, 0, .6); color-scheme: dark;
 }
 
@@ -103,6 +104,8 @@ p { margin: 0; }
 .sq.last::before { background: rgba(240, 205, 70, .45); }
 .sq.sel::before { background: rgba(18, 21, 19, .22); }
 .sq.hint::before { box-shadow: inset 0 0 0 4px rgba(37, 120, 235, .9); }
+.sq.focus::before { content: ""; position: absolute; inset: 7%; border-radius: 50%; box-shadow: inset 0 0 0 4px var(--plan), 0 0 0 2px color-mix(in oklab, var(--plan) 25%, transparent); z-index: 3; pointer-events: none; }
+.sq.lastbad::before { content: ""; position: absolute; inset: 0; background: rgba(224, 67, 58, .38); }
 .sq.check::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, rgba(235, 50, 40, .9) 0%, rgba(235, 50, 40, .4) 40%, transparent 72%); z-index: 1; }
 .sq .dot { position: absolute; left: 50%; top: 50%; width: 28%; height: 28%; transform: translate(-50%, -50%); border-radius: 50%; background: rgba(18, 21, 19, .22); z-index: 3; pointer-events: none; }
 .sq .dot.cap { width: 90%; height: 90%; background: transparent; box-shadow: inset 0 0 0 5px rgba(18, 21, 19, .22); }
@@ -113,6 +116,7 @@ p { margin: 0; }
 .arrow { fill: rgba(31, 157, 85, .82); }
 .arrow.bad { fill: rgba(224, 67, 58, .78); }
 .arrow.hint { fill: rgba(37, 120, 235, .8); }
+.arrow.plan { fill: var(--plan); opacity: .78; }
 .drag-ghost { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 50; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .25)); }
 .promo { position: absolute; inset: 0; z-index: 6; background: color-mix(in oklab, var(--paper) 70%, transparent); display: grid; grid-template-columns: repeat(4, 1fr); align-content: center; padding: 0 8%; gap: 4%; }
 .promo button { aspect-ratio: 1; border: 0; border-radius: 16px; background: var(--raised); cursor: pointer; box-shadow: var(--shadow); }
@@ -135,6 +139,8 @@ p { margin: 0; }
 .tone-warn { color: var(--t-warn); } .tone-bad { color: var(--t-bad); } .tone-worse { color: var(--t-worse); }
 .say { font-size: 16px; line-height: 1.45; }
 .better { font-size: 15px; color: var(--ink-2); }
+.rule { font-size: 15px; line-height: 1.45; padding: 10px 12px; border-radius: 12px; background: color-mix(in oklab, var(--t-good) 10%, transparent); }
+.rule b { color: var(--t-good); font-weight: 600; }
 .watch { font-size: 15px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .watch::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--t-bad); animation: blink 1s ease-in-out infinite; }
 .status { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
@@ -151,6 +157,14 @@ p { margin: 0; }
 .pill:active { transform: scale(.96); }
 .btn[disabled] { opacity: .45; pointer-events: none; }
 
+/* plan strip (sits under "Your move") */
+.plan-strip { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; border: 0; cursor: pointer; background: color-mix(in oklab, var(--plan) 10%, var(--raised)); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); transition: transform .16s var(--ease-out); }
+.plan-strip:active { transform: scale(.98); }
+.plan-strip .txt b { display: block; font-size: 15px; font-weight: 600; }
+.plan-strip .txt span { display: block; font-size: 14px; color: var(--ink-2); line-height: 1.4; }
+.plan-strip .dotring { flex: none; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 3px var(--plan); margin-top: 2px; }
+.plan-strip.ask { box-shadow: inset 0 0 0 2px var(--plan), var(--shadow); }
+.turn em { font-style: normal; font-weight: 700; margin-right: 2px; }
 /* plan row */
 .plan-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: var(--raised); border-radius: 18px; padding: 14px 16px; cursor: pointer; box-shadow: var(--shadow); transition: transform .16s var(--ease-out); }
 .plan-row:active { transform: scale(.98); }
@@ -683,7 +697,7 @@ const METHOD = [
 // ===== Game plans by pawn structure (the coach detects the structure on the board) =====
 // Each step has a check id the app knows how to test, or "tip" for advice only.
 const PLANS = {
-  "ck-advance": { name: "Advance structure", for: "b",
+  "ck-advance": { name: "Advance structure", for: "b", focus: "d4", moves: [["c5"], ["Nc6", "Qb6", "Ne7", "Nf5", "Nge7"], ["O-O", "Rc8"], []],
     look: "White has pawns on d4 and e5. Your pawns are on d5 and e6.",
     steps: [
       { t: "Hit the base of White's chain with ...c5", check: "b_c5_or_no_wd4", why: "d4 holds up e5. Attack d4 and the chain wobbles." },
@@ -695,7 +709,7 @@ const PLANS = {
       right: "Attack d4 with ...c5, then pile up on it with ...Nc6 and ...Qb6",
       wrong: ["Attack on the kingside with ...g5 and ...h5", "Play ...f6 right away and open your king"],
       why: "Attack the chain at its base. d4 supports e5, so it's the weak point." } },
-  "ck-classical": { name: "Caro-Kann wall (c6 + e6)", for: "b",
+  "ck-classical": { name: "Caro-Kann wall (c6 + e6)", for: "b", focus: "d4", moves: [["Ngf6", "Nf6", "Be7", "Bd6", "Nd7"], ["O-O", "O-O-O"], ["c5", "e5"], []],
     look: "White has a pawn on d4 but no e-pawn. You have a solid wall on c6 and e6.",
     steps: [
       { t: "Finish developing your knights and bishops", check: "minors_done", why: "Your position is solid. Get everything out before starting fights." },
@@ -707,7 +721,7 @@ const PLANS = {
       right: "Finish development, castle, then hit d4 with ...c5",
       wrong: ["Push ...b5-b4 right away to grab space", "Leave your king in the center and attack with ...g5"],
       why: "Solid positions win by finishing development first, then striking the center at the right moment." } },
-  "ck-exchange": { name: "Exchange structure", for: "b",
+  "ck-exchange": { name: "Exchange structure", for: "b", focus: "c3", moves: [["Rc8", "Rac8", "Rfc8"], ["Rab8", "b5", "b4"], ["Ne4", "Nc4"]],
     look: "Your pawn is on d5 with no c-pawn. White has pawns on c3 and d4.",
     steps: [
       { t: "Put a rook on the open c-file", check: "b_rook_c", why: "The open file is a highway into White's camp." },
@@ -718,7 +732,7 @@ const PLANS = {
       right: "Rook to the c-file, then push ...b5-b4 to attack c3",
       wrong: ["Push ...e5 at once and open the center", "Trade your good bishop for a knight right away"],
       why: "The open c-file plus a minority attack creates a weak White pawn you can target." } },
-  "iqp-against": { name: "White's lonely d-pawn (IQP)", for: "b",
+  "iqp-against": { name: "White's lonely d-pawn (IQP)", for: "b", focus: "d4", moves: [["Nd5", "Nbd5", "Nfd5"], ["Nc6", "Bf6", "Rd8", "Qd6"], []],
     look: "White's d4 pawn has no pawn neighbors (no c- or e-pawn).",
     steps: [
       { t: "Put a knight on d5, right in front of the pawn", check: "b_knight_d5", why: "That square can never be attacked by a pawn. Perfect home for a knight." },
@@ -729,7 +743,7 @@ const PLANS = {
       right: "Blockade d5 with a knight, attack d4, and trade pieces",
       wrong: ["Avoid trades and launch a pawn storm on your own king's side", "Let White push d4-d5 and open the position"],
       why: "Against an isolated pawn: blockade it, attack it, and trade pieces." } },
-  "qgd": { name: "Queen's Gambit tension on d5", for: "w",
+  "qgd": { name: "Queen's Gambit tension on d5", for: "w", focus: "d5", moves: [["Nc3", "Nf3", "Bg5"], ["Rc1"], ["Bd3", "O-O", "Bxc4"], []],
     look: "Your pawns on c4 and d4 face Black's d5 and e6.",
     steps: [
       { t: "Pile pressure on d5 (Nc3, Nf3, Bg5)", check: "w_pressure_d5", why: "d5 is the heart of Black's position. Attack it and its defenders." },
@@ -741,7 +755,7 @@ const PLANS = {
       right: "Pile pressure on d5, put a rook on c1, castle, and take back on c4 with the bishop",
       wrong: ["Grab the d5 pawn with your knight as soon as you can", "Push your g- and h-pawns before developing"],
       why: "Squeeze d5, develop with purpose, and keep Black cramped." } },
-  "carlsbad": { name: "Carlsbad structure", for: "w",
+  "carlsbad": { name: "Carlsbad structure", for: "w", focus: "c6", moves: [["Rb1", "Rab1"], ["b4"], ["b5"], []],
     look: "You have no c-pawn. Black has pawns on c6 and d5 but no e-pawn.",
     steps: [
       { t: "Rook to b1", check: "w_rook_b1", why: "The rook backs up the b-pawn push." },
@@ -753,7 +767,7 @@ const PLANS = {
       right: "Minority attack: Rb1, b4, b5 to make a weak Black pawn",
       wrong: ["Push e4 right away even if it hangs a pawn", "Trade queens and push your h-pawn"],
       why: "In the Carlsbad, two pawns attacking three (the minority attack) creates a lasting weakness." } },
-  "iqp-for": { name: "Your lonely d-pawn (IQP)", for: "w",
+  "iqp-for": { name: "Your lonely d-pawn (IQP)", for: "w", focus: "e5", moves: [["O-O", "Nc3", "Bd3", "Be2"], ["Ne5"], ["Rd1", "Re1", "Rfd1", "Rfe1"], []],
     look: "Your d4 pawn has no pawn neighbors, but your pieces are active.",
     steps: [
       { t: "Develop everything and castle", check: "minors_done_castled", why: "The lonely pawn is worth it only if your pieces are active." },
@@ -765,7 +779,7 @@ const PLANS = {
       right: "Keep pieces on, knight to e5, rooks to d1/e1, and look for d4-d5 or an attack",
       wrong: ["Trade as many pieces as possible", "Retreat your pieces to defend the pawn"],
       why: "An isolated pawn gives you activity. Use it before the endgame, where the pawn becomes weak." } },
-  "big-center": { name: "Big center (d4 + e4)", for: "w",
+  "big-center": { name: "Big center (d4 + e4)", for: "w", focus: "e5", moves: [["e5"], ["Nh4"], []],
     look: "You have pawns on d4 and e4. Black has c6 and e6.",
     steps: [
       { t: "Push e5 to gain space", check: "w_e5", why: "It kicks Black's knight and gives your pieces room on the kingside." },
@@ -801,9 +815,9 @@ const GOALS = {
 
 // Famous traps: a note shown when you step into one
 const TRAPS = [
-  { moves: "d4 d5 c4 e6 Nc3 Nf6 Bg5 Nbd7 cxd5 exd5", san: "Nxd5", note: "This falls for the Elephant Trap. Black wins a piece." },
-  { moves: "d4 d5 c4 e5 dxe5 d4", san: "e3", note: "This walks into the Lasker Trap. Play Nf3 instead." },
-  { moves: "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Nd7 Qe2", san: "Ngf6", note: "Nd6 is checkmate. Your e-pawn is pinned to your king." },
+  { moves: "d4 d5 c4 e6 Nc3 Nf6 Bg5 Nbd7 cxd5 exd5", san: "Nxd5", note: "This falls for the Elephant Trap. Black wins a piece.", rule: "If something looks free, look for the trick first." },
+  { moves: "d4 d5 c4 e5 dxe5 d4", san: "e3", note: "This walks into the Lasker Trap. Play Nf3 instead.", rule: "Develop your pieces before opening lines near your own king." },
+  { moves: "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Nd7 Qe2", san: "Ngf6", note: "Nd6 is checkmate. Your e-pawn is pinned to your king.", rule: "Before every move, look at all of your opponent's checks." },
 ];
 
 // ================= Core chess helpers =================
@@ -1078,10 +1092,77 @@ function principleNotes(ctx) {
 
 let TRAPMAP = null;
 function trapNote(fen, san) {
-  if (!TRAPMAP) { TRAPMAP = new Map(); for (const t of TRAPS) { const g = new Chess(); t.moves.split(" ").forEach(x => g.move(x)); TRAPMAP.set(fenKey(g.fen()) + "|" + t.san, t.note); } }
-  return TRAPMAP.get(fenKey(fen) + "|" + san) || null;
+  if (!TRAPMAP) { TRAPMAP = new Map(); for (const t of TRAPS) { const g = new Chess(); t.moves.split(" ").forEach(x => g.move(x)); TRAPMAP.set(fenKey(g.fen()) + "|" + t.san, t); } }
+  const t = TRAPMAP.get(fenKey(fen) + "|" + san); return t ? t.note : null;
 }
 // ================= The coach: explain a move in plain words =================
+// ---- Basic principles: pick the rule that explains a move, from what it actually does on the board ----
+function isHanging(map, sq) {
+  const p = map[sq]; if (!p || p.type === "k") return false;
+  const att = attackers(map, sq, other(p.color)); if (!att.length) return false;
+  const def = attackers(map, sq, p.color);
+  return !def.length || att.some(a => VAL[map[a].type] < VAL[p.type]);
+}
+function isPassed(map, sq, c) {
+  const [f, r] = sqFR(sq);
+  for (const s in map) { const q = map[s]; if (q.type !== "p" || q.color === c) continue; const [qf, qr] = sqFR(s); if (Math.abs(qf - f) <= 1 && (c === "w" ? qr > r : qr < r)) return false; }
+  return true;
+}
+function hitsChainBase(map, sq, c) {
+  // Does my pawn on sq attack an enemy pawn that holds up another pawn but has no pawn behind it?
+  const [f, r] = sqFR(sq); const d = c === "w" ? 1 : -1; const them = other(c);
+  const isTheirPawn = s2 => s2 && map[s2] && map[s2].type === "p" && map[s2].color === them;
+  for (const df of [-1, 1]) {
+    const t = frSq(f + df, r + d); if (!isTheirPawn(t)) continue;
+    const [tf, tr] = sqFR(t);
+    const guarded = [-1, 1].some(x => isTheirPawn(frSq(tf + x, tr + d)));
+    const holdsChain = [-1, 1].some(x => isTheirPawn(frSq(tf + x, tr - d)));
+    if (!guarded && holdsChain) return true;
+  }
+  return false;
+}
+function principleFor(fen, m, me) {
+  const g = new Chess(fen); const map = boardMap(g); const num = +fen.split(" ")[5];
+  const phase = gamePhase(map, num);
+  const after = new Chess(fen); after.move({ from: m.from, to: m.to, promotion: m.promotion }); const amap = boardMap(after);
+  if (after.in_checkmate()) return "Look at every check. Some of them are checkmate.";
+  if (m.captured) {
+    const defended = attackers(map, m.to, other(me)).length > 0;
+    if (!defended) return "Take free material when it's safe.";
+    if (VAL[m.captured] > VAL[m.piece]) return "Trade a smaller piece for a bigger one when you can.";
+    if (m.piece === "p" && Math.abs(3.5 - FILES.indexOf(m.to[0])) < Math.abs(3.5 - FILES.indexOf(m.from[0]))) return "Capture toward the center with your pawns.";
+    if (matDiff(map, me) >= 2 && VAL[m.captured] === VAL[m.piece]) return "When you're ahead, trade pieces.";
+  }
+  if (m.piece !== "k" && isHanging(map, m.from)) return "First, save pieces that are under attack.";
+  const mine = Object.keys(map).filter(x => map[x].color === me && x !== m.from);
+  if (mine.some(x => isHanging(map, x) && !isHanging(amap, x))) return "Protect your loose pieces before you start a plan.";
+  if (m.flags.includes("k") || m.flags.includes("q")) return "Castle early to keep your king safe.";
+  if (phase === "endgame" && m.piece === "k") return "In the endgame, your king is a fighter. Bring it to the center.";
+  if (m.piece === "p" && isPassed(amap, m.to, me) && phase !== "opening") return "Passed pawns must be pushed.";
+  if (m.piece === "p" && hitsChainBase(amap, m.to, me)) return "Attack a pawn chain at its base.";
+  if (m.piece === "p" && ["c4", "c5", "d4", "d5", "e4", "e5"].includes(m.to)) return "Fight for the center with your pawns.";
+  const home = me === "w" ? "1" : "8";
+  if ((m.piece === "n" || m.piece === "b") && m.from[1] === home && phase !== "endgame") return "In the opening, bring out a new piece every move.";
+  if (m.piece === "r") { const P = pawnsOf(amap, me); if (!fileHas(P, m.to[0])) return "Put your rooks on open files."; }
+  const targets = attacksFrom(amap, m.to).filter(x => amap[x] && amap[x].color !== me && amap[x].type !== "k" && (amap[x].type !== "p" || !attackers(amap, x, other(me)).length) && (VAL[amap[x].type] > VAL[m.piece] || !attackers(amap, x, other(me)).length));
+  if (targets.length >= 2) return "Attack two things at once. They can't save both.";
+  if (targets.length) {
+    const t = targets[0]; const tp = amap[t];
+    if (tp.type === "p" && ["d4", "d5", "e4", "e5"].includes(t)) return "A center pawn defended only by pieces can often be won. Attack it more times than it's defended.";
+    return "Make threats that force your opponent to react.";
+  }
+  const before = mobility(map, m.from), afterMob = mobility(amap, m.to);
+  if ("nbrq".includes(m.piece) && afterMob - before >= 3) return "Improve your worst piece. Put it where it does more.";
+  return null;
+}
+function trapRule(fen, san) { trapNote(fen, san); const t = TRAPMAP.get(fenKey(fen) + "|" + san); return t ? t.rule : null; }
+function ruleForMistake(tags, msg) {
+  if (tags.includes("allows-mate")) return "Before every move, look at all of your opponent's checks.";
+  if (tags.includes("missed-mate")) return "Look at every check first. Some of them are checkmate.";
+  if (tags.includes("fork")) return "Watch for one piece attacking two of yours at once.";
+  if (tags.includes("hangs")) return /for free|hanging/.test(msg) ? "Before every move, ask: what can my opponent take?" : "Count attackers and defenders before you put a piece there.";
+  return null;
+}
 // Short ideas, for "Better: Nf6, develops your knight."
 function shortIdea(fen, m) {
   const i = moveIdea(fen, m); if (!i) return "";
@@ -1110,15 +1191,11 @@ function explainMove(ctx) {
   const best = bestMoves[0];
   const replyPv = after ? after.lines[0].pv : [];
   const reply = after ? pvToSan(fenAfter, replyPv, 6) : [];
-  const out = { cls, loss, wpBefore: wpB, wpAfter: wpA, bestCp, afterCp, msg: [], better: "", best: best ? best.san : null, bestUci: bestLine.pv[0], reply: reply.map(r => r.san), replyUci: replyPv[0] || null, tags: [], show: null, fenAfter };
+  const out = { rule: null, cls, loss, wpBefore: wpB, wpAfter: wpA, bestCp, afterCp, msg: [], better: "", best: best ? best.san : null, bestUci: bestLine.pv[0], reply: reply.map(r => r.san), replyUci: replyPv[0] || null, tags: [], show: null, fenAfter };
   const bad = ["inaccuracy", "mistake", "blunder"].includes(cls);
   const bookMove = book && book.length ? book.slice().sort((a, b) => b.weight - a.weight)[0] : null;
   const trap = trapNote(fenBefore, move.san);
-  const betterLine = () => {
-    if (!best || best.san === move.san) return "";
-    const idea = shortIdea(fenBefore, best);
-    return `Better: ${best.san}${idea ? ", " + idea : ""}.`;
-  };
+  const betterLine = () => (!best || best.san === move.san) ? "" : `Better: ${best.san}`;
 
   if (cls === "book") {
     const b = book.find(x => x.san === move.san);
@@ -1129,10 +1206,10 @@ function explainMove(ctx) {
     const idea = shortIdea(fenBefore, move);
     const notes = cls === "good" ? principleNotes({ fenBefore, move, me, history, opening }) : [];
     if (notes.length) out.msg.push(notes[0]);
-    else if (cls === "best") out.msg.push(idea ? `Top move: ${idea}.` : "That's the top move.");
-    else out.msg.push(idea ? `Good: ${idea}.` : "Solid move.");
-    if (cls === "good") out.better = betterLine();
-    if (bookMove && bookMove.san !== move.san && cls !== "best") out.better = `Repertoire move: ${bookMove.san}.`;
+    else out.msg.push(cls === "best" ? "That's the top move." : cls === "excellent" ? "Excellent move." : "Good move.");
+    if (cls === "good") { out.better = betterLine(); out.rule = best ? principleFor(fenBefore, best, me) : null; }
+    else out.rule = principleFor(fenBefore, move, me);
+    if (bookMove && bookMove.san !== move.san && cls !== "best" && (!best || bookMove.san !== best.san || cls !== "good")) out.better = (out.better ? out.better + ". " : "") + `Repertoire move: ${bookMove.san}`;
     return out;
   }
 
@@ -1181,7 +1258,12 @@ function explainMove(ctx) {
     fromAfter(Math.min(3, replyPv.length), "Watch:");
   }
   out.better = betterLine();
-  if (bookMove && bookMove.san !== move.san && (!best || bookMove.san !== best.san)) out.better += ` Repertoire move: ${bookMove.san}.`;
+  if (bookMove && bookMove.san !== move.san && (!best || bookMove.san !== best.san)) out.better += `. Repertoire move: ${bookMove.san}`;
+  const forcing = ["Take free material when it's safe.", "Trade a smaller piece for a bigger one when you can.", "Attack two things at once. They can't save both.", "Look at every check. Some of them are checkmate."];
+  const bestRule = best ? principleFor(fenBefore, best, me) : null;
+  out.rule = (trap && trapRule(fenBefore, move.san)) || ruleForMistake(out.tags, out.msg[0] || "")
+    || (out.tags.includes("missed-win") ? (forcing.includes(bestRule) ? bestRule : "Look for forcing moves first: checks, captures, and threats.") : null)
+    || bestRule || "Before you move, ask what your opponent wants to do next.";
   if (out.show && !out.show.pv.length) out.show = null;
   return out;
 }
@@ -1288,6 +1370,21 @@ function goalsFor(map, me, history, moveNum) {
     } else it.done = null; // advice only
   }
   return { phase, items };
+}
+
+// Where to push: attackers vs defenders on the plan's key square
+function pressureOn(map, sq, me) {
+  const mine = attackers(map, sq, me).length, theirs = attackers(map, sq, other(me)).length;
+  const p = map[sq]; const enemyThere = p && p.color !== me;
+  return { sq, mine, theirs, enemyThere };
+}
+function pressureText(pr, opp) {
+  if (pr.enemyThere) {
+    const lead = pr.mine > pr.theirs ? "You have more attackers than defenders there." : pr.mine === pr.theirs ? "It's even. Add one more attacker." : "Add more attackers.";
+    const n = k => k === 1 ? "once" : k === 2 ? "twice" : k + " times";
+    return `${pr.mine ? `You attack ${pr.sq} ${n(pr.mine)}.` : `Nothing of yours attacks ${pr.sq} yet.`} ${pr.theirs ? `${opp} defends it ${n(pr.theirs)}.` : `${opp} isn't defending it.`} ${lead}`;
+  }
+  return `You control ${pr.sq} ${pr.mine}x, ${opp} ${pr.theirs}x.${pr.mine <= pr.theirs ? " Add more control." : ""}`;
 }
 
 // ================= Board (tap or drag to move) =================
@@ -1662,13 +1759,39 @@ function showView(v) {
 }
 
 // ================= PLAY =================
-const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} }, playing: false, replayId: 0 };
+const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} }, playing: false, replayId: 0, lastAfterCp: null, oppMistake: null };
 let playBoard;
 
 function canUserMove() { return ENGINE === "ok" && !P.busy && !P.over && !P.wait && !P.playing && P.game.turn() === P.you; }
 function kingSq(g) { if (!g.in_check()) return null; const m = boardMap(g); return Object.keys(m).find(s => m[s].type === "k" && m[s].color === g.turn()); }
+function planOverlay() {
+  // Rings on the squares that matter right now, plus an arrow for the next plan move when the engine agrees it's sound
+  const out = { marks: {}, arrows: [] };
+  if (P.game.turn() !== P.you || P.busy || P.wait || P.playing || P.over || P.oppMistake || !P.hist.length) return out;
+  const info = planInfo(); if (planPending(info)) return out;
+  if (S.plan.stage >= 3 && !P.plan.answered[info.sid]) return out;
+  if (info.plan) {
+    out.marks[info.plan.focus] = "focus";
+    const idx = info.steps.findIndex(s => s.done === false);
+    const cand = idx >= 0 && info.plan.moves && info.plan.moves[idx] ? info.plan.moves[idx] : [];
+    if (cand.length && P.pre) {
+      const top = new Set(P.pre.lines.filter(l => l.pv && l.pv[0] && winPct(toCp(l.score)) >= winPct(toCp(P.pre.lines[0].score)) - 6).map(l => l.pv[0]));
+      const legal = P.game.moves({ verbose: true }).filter(m => cand.includes(m.san.replace(/[+#]/g, "")) && top.has(moveUci(m)));
+      if (legal[0]) out.arrows.push({ from: legal[0].from, to: legal[0].to, kind: "plan" });
+    }
+  } else {
+    const map = boardMap(P.game); const g = info.goals.items.find(i => i.done === false);
+    if (g && g.id === "develop") { const home = P.you === "w" ? { n: ["b1", "g1"], b: ["c1", "f1"] } : { n: ["b8", "g8"], b: ["c8", "f8"] }; for (const t of ["n", "b"]) for (const sq of home[t]) if (map[sq] && map[sq].type === t && map[sq].color === P.you) out.marks[sq] = "focus"; }
+    if (g && g.id === "castle") { const k = Object.keys(map).find(x => map[x].type === "k" && map[x].color === P.you); if (k) out.marks[k] = "focus"; }
+    if (g && g.id === "worst") { const w = worstPiece(map, P.you); if (w) out.marks[w.sq] = "focus"; }
+  }
+  return out;
+}
 function renderPlayBoard(anim) {
-  playBoard.set({ fen: P.game.fen(), orientation: P.you, last: P.last, check: kingSq(P.game), arrows: P.arrows, marks: P.marks, animate: anim });
+  const ov = planOverlay();
+  const marks = { ...ov.marks, ...P.marks };
+  if (P.oppMistake && P.last) { marks[P.last.from] = marks[P.last.from] || "lastbad"; marks[P.last.to] = "lastbad"; }
+  playBoard.set({ fen: P.game.fen(), orientation: P.you, last: P.last, check: kingSq(P.game), arrows: P.arrows.length ? P.arrows : ov.arrows, marks, animate: anim });
 }
 function updateEval(score, stm) {
   if (!score || !$("#evalfill")) return;
@@ -1681,7 +1804,7 @@ function setThinking(on) { $("#thinking").classList.toggle("on", on); }
 function newGame() {
   P.gid++; coachEngine.stop(); botEngine.stop(); P.replayId++; P.playing = false;
   P.opening = S.opening || "caro"; P.you = REPERTOIRE[P.opening].you;
-  Object.assign(P, { game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} } });
+  Object.assign(P, { lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} } });
   setTop();
   renderPlayBoard(); renderCoach(); renderPlan();
   if (P.you === "b") botMove(); else startUserTurn();
@@ -1690,7 +1813,18 @@ function startUserTurn() {
   const fen = P.game.fen(); const gid = P.gid;
   P.preFen = fen; P.pre = null; P.hintText = ""; P.hintStep = 0;
   P.prePromise = coachEngine.ready.then(() => analyze(fen, "depth 18 movetime 2500", 3, j => { if (P.gid === gid && P.preFen === fen && j.lines[1]) updateEval(j.lines[1].score, P.you); }))
-    .then(r => { if (P.preFen === fen) P.pre = r; return r; });
+    .then(r => {
+      if (P.preFen !== fen) return r;
+      P.pre = r;
+      if (P.lastAfterCp != null && P.theirs && !P.theirs.book && !P.retry) {
+        const nowCp = toCp(r.lines[0].score);
+        const oppLoss = winPct(nowCp) - winPct(P.lastAfterCp);
+        if (oppLoss >= 10 && winPct(P.lastAfterCp) < 90) { P.oppMistake = { cls: oppLoss >= 20 ? "blunder" : "mistake", label: P.theirs.label, punish: r.lines[0].pv[0] }; }
+      }
+      P.lastAfterCp = null;
+      renderPlayBoard(); renderCoach();
+      return r;
+    });
   P.prePromise.catch(() => {});
   renderCoach(); renderPlan();
 }
@@ -1714,6 +1848,9 @@ async function onUserMove(m, dragged) {
   const r = explainMove({ fenBefore, move: mv, me: P.you, before: pre, after, opening: P.opening, history: histBefore, book });
   if (after) updateEval(after.lines[0].score, P.game.turn());
   const wasRetry = P.retry && P.retry.fen === fenBefore;
+  if (P.oppMistake && !["inaccuracy", "mistake", "blunder"].includes(r.cls)) r.punished = moveUci(mv) === P.oppMistake.punish || r.loss < 3;
+  P.oppMistake = null;
+  P.lastAfterCp = after ? r.afterCp : null;
   P.hist.push({ fenBefore, move: mv, r, label });
   P.mine = { label, san: mv.san, r, fenBefore, move: mv, retry: wasRetry };
   const bad = r.cls === "mistake" || r.cls === "blunder";
@@ -1756,7 +1893,7 @@ function undoMine() {
   P.retry = { fen: w.fenBefore, r: w.r, tries: (P.retry && P.retry.fen === w.fenBefore ? P.retry.tries : 0) + 1 };
   P.wait = null; P.pre = w.pre; P.preFen = w.fenBefore; P.prePromise = Promise.resolve(w.pre);
   if (w.pre && w.pre.lines[0]) updateEval(w.pre.lines[0].score, P.you);
-  P.hintText = ""; P.hintStep = 0;
+  P.hintText = ""; P.hintStep = 0; P.oppMistake = null;
 }
 function tryAgain() { cancelReplay(); undoMine(); P.mine = null; renderPlayBoard(); renderCoach(); }
 function showBetter() {
@@ -1792,7 +1929,7 @@ async function botMove() {
   const mv = P.game.move(uciObj(uci)); if (!mv) { setThinking(false); P.busy = false; return; }
   if (!idea) { const i = moveIdea(fen, mv); idea = i ? i.charAt(0).toUpperCase() + i.slice(1).replace(/\byour\b/g, "their") + "." : ""; }
   P.last = { from: mv.from, to: mv.to }; P.arrows = []; P.marks = {};
-  P.theirs = { label: moveLabel(fen, mv.san), idea };
+  P.theirs = { label: moveLabel(fen, mv.san), idea, book: book.length > 0 };
   P.hist.push({ fenBefore: fen, move: mv, bot: true });
   setThinking(false); P.busy = false;
   renderPlayBoard({ from: mv.from, to: mv.to });
@@ -1833,6 +1970,7 @@ function verdictHTML(r, label) {
 function feedbackHTML(r) {
   let h = r.msg.slice(0, 1).map(m => `<p class="say enter">${bold(m)}</p>`).join("");
   if (r.better) h += `<p class="better enter">${bold(r.better)}</p>`;
+  if (r.rule) h += `<p class="rule enter"><b>Rule:</b> ${esc(r.rule)}</p>`;
   return h;
 }
 function watchHTML(r) { return P.playing ? `<p class="watch" id="watch">${esc(r.show.caption)}</p>` : `<div><button class="link" data-act="watch">Replay the moves</button></div>`; }
@@ -1859,14 +1997,16 @@ function renderCoach() {
     else if (!P.busy && P.game.turn() === P.you) {
       const first = !P.hist.some(x => !x.bot);
       turn = P.retry ? "Find a better move." : "Your move.";
+      if (P.oppMistake && !P.retry) turn = `<em class="tone-${CLS[P.oppMistake.cls].tone}">${CLS[P.oppMistake.cls].nag}</em> ${opp}'s <b>${esc(P.oppMistake.label)}</b> was a ${P.oppMistake.cls}.<span>Find the move that punishes it.</span>`;
       if (first && !P.retry) turn += P.you === "b" ? `<span>You're Black. Answer with <b>...c6</b>, the Caro-Kann.</span>` : `<span>You're White. Start with <b>d4</b>, then <b>c4</b>.</span>`;
       hintBtn = `<button class="pill" data-act="hint">${P.hintStep ? "More help" : "Hint"}</button>`;
     }
     if (turn) h += `<div class="turn"><p>${turn}</p>${hintBtn}</div>`;
     if (P.hintText) h += `<p class="say enter">${bold(P.hintText)}</p>`;
+    if (!P.busy && P.game.turn() === P.you && !P.oppMistake) h += planStripHTML();
     if (P.mine && P.mine.r) {
       const r = P.mine.r;
-      h += `<div class="card enter">${P.mine.retry && !["mistake", "blunder"].includes(r.cls) ? `<p class="say"><b>That's better.</b></p>` : ""}${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}${r.show && P.playing ? watchHTML(r) : ""}</div>`;
+      h += `<div class="card enter">${r.punished ? `<p class="say"><b>You punished their mistake.</b></p>` : ""}${P.mine.retry && !["mistake", "blunder"].includes(r.cls) ? `<p class="say"><b>That's better.</b></p>` : ""}${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}${r.show && P.playing ? watchHTML(r) : ""}</div>`;
     }
   }
   el.innerHTML = h;
@@ -1880,9 +2020,24 @@ function planInfo() {
   const steps = plan ? plan.steps.map(s => ({ ...s, done: s.check === "tip" ? null : runCheck(s.check, map, P.you, hist) })) : [];
   return { goals, sid, plan, steps };
 }
+function planStripHTML() {
+  if (!P.hist.length || P.over) return "";
+  const info = planInfo();
+  const opp = COLOR[other(P.you)];
+  if (planPending(info)) return `<button class="plan-strip ask" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>Quick question: what's your plan here?</b><span>Tap to answer.</span></span></button>`;
+  if (info.plan && (S.plan.stage < 3 || P.plan.answered[info.sid])) {
+    const next = info.steps.find(s => s.done === false) || info.steps[0];
+    const pr = pressureOn(boardMap(P.game), info.plan.focus, P.you);
+    return `<button class="plan-strip" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>Plan: ${esc(next.t)}</b><span>${esc(pressureText(pr, opp))}</span></span></button>`;
+  }
+  if (info.plan) return `<button class="plan-strip" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>What's your plan?</b><span>Tap to check it.</span></span></button>`;
+  const g = info.goals.items.find(i => i.done === false) || info.goals.items.find(i => i.done === null);
+  if (!g) return "";
+  return `<button class="plan-strip" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>Goal: ${esc(g.t)}</b><span>The ringed ${g.id === "develop" ? "pieces still need to come out" : g.id === "castle" ? "king should castle soon" : "square is where to look"}.</span></span></button>`;
+}
 function planPending(info) { return info.sid && S.plan.stage >= 2 && !P.plan.answered[info.sid] && !P.over; }
 function renderPlan() {
-  const row = $("#plan-row"); if (!row) return;
+  const row = $("#plan-row"); if (row) row.hidden = true; return;
   if (!P.hist.length) { row.hidden = true; return; }
   row.hidden = false;
   const info = planInfo();
@@ -2208,15 +2363,21 @@ function renderReview(anim) {
     if (RV.added) h += `<p class="sub">${RV.added} position${RV.added > 1 ? "s" : ""} added to Practice.</p>`;
     const last = i > 0 ? RV.moves[i - 1] : null;
     const arrows = [];
-    if (last) { const r = RV.R[i - 1]; if (last.color === RV.you && ["inaccuracy", "mistake", "blunder"].includes(r.cls) && r.bestUci) { const b = uciObj(r.bestUci); arrows.push({ from: b.from, to: b.to }); } }
+    let pun = null;
+    if (last) {
+      const r = RV.R[i - 1];
+      if (last.color === RV.you && ["inaccuracy", "mistake", "blunder"].includes(r.cls) && r.bestUci) { const b = uciObj(r.bestUci); arrows.push({ from: b.from, to: b.to }); }
+      if (last.color !== RV.you && ["mistake", "blunder"].includes(r.cls) && RV.A[i] && RV.A[i].lines[0].pv[0]) { pun = pvToSan(RV.fens[i], RV.A[i].lines[0].pv, 1)[0]; if (pun) arrows.push({ from: pun.from, to: pun.to }); }
+    }
     rvBoard.set({ fen: RV.fens[i], orientation: RV.you, last: last ? { from: last.from, to: last.to } : null, arrows, animate: anim });
     if (last) {
       const r = RV.R[i - 1];
       if (last.color === RV.you) h += verdictHTML(r, moveLabel(RV.fens[i - 1], last.san)) + feedbackHTML(r);
+      else if (pun) { const c = CLS[r.cls]; h += `<div class="card enter"><div class="verdict"><span class="nag tone-${c.tone}" aria-hidden="true">${c.nag}</span><h2 class="tone-${c.tone}">${last.color === "w" ? "White" : "Black"}'s ${r.cls}</h2><span class="mv">${esc(moveLabel(RV.fens[i - 1], last.san))}</span></div><p class="say">You could punish it with <b>${esc(pun.san)}</b>.</p></div>`; }
       else h += `<p class="theirs">${last.color === "w" ? "White" : "Black"} played <b>${esc(moveLabel(RV.fens[i - 1], last.san))}</b>.</p>`;
     } else h += `<p class="sub">Starting position.</p>`;
     h += `<div class="nav"><button class="btn" data-rv="first" aria-label="First move">«</button><button class="btn" data-rv="prev" aria-label="Previous move">‹</button><button class="btn" data-rv="nextmv" aria-label="Next move">›</button><button class="btn" data-rv="last" aria-label="Last move">»</button></div>`;
-    h += `<div class="moves" aria-label="Moves">${RV.moves.map((m, j) => { const mark = m.color === RV.you ? CLS[RV.R[j].cls].nag : ""; return `${m.color === "w" ? `<span class="n">${Math.floor(j / 2) + 1}.</span>` : ""}<button data-mv="${j + 1}" class="${j + 1 === i ? "on" : ""}">${esc(m.san)}${mark ? `<span class="tone-${CLS[RV.R[j].cls].tone}">${mark}</span>` : ""}</button>`; }).join("")}</div>`;
+    h += `<div class="moves" aria-label="Moves">${RV.moves.map((m, j) => { const mark = (m.color === RV.you || ["mistake", "blunder"].includes(RV.R[j].cls)) ? CLS[RV.R[j].cls].nag : ""; return `${m.color === "w" ? `<span class="n">${Math.floor(j / 2) + 1}.</span>` : ""}<button data-mv="${j + 1}" class="${j + 1 === i ? "on" : ""}">${esc(m.san)}${mark ? `<span class="tone-${CLS[RV.R[j].cls].tone}">${mark}</span>` : ""}</button>`; }).join("")}</div>`;
   }
   co.innerHTML = h;
   co.querySelectorAll("[data-rv]").forEach(b => b.onclick = () => {
@@ -2259,6 +2420,7 @@ function wire() {
   $("#coach").addEventListener("click", e => {
     const b = e.target.closest("[data-act]"); if (!b) return;
     const a = b.dataset.act;
+    if (a === "plan") openPlanSheet();
     if (a === "retry") tryAgain(); if (a === "show") showBetter(); if (a === "keep") keepPlaying(); if (a === "hint") giveHint();
     if (a === "new") newGame();
     if (a === "review") { const parsed = parseGame(gamePgn()); location.hash = "#review"; startReview(parsed, P.you); }
