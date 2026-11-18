@@ -234,17 +234,16 @@ function showView(v) {
 }
 
 // ================= PLAY =================
-// Every turn shows one card: what to do next. Help steps back as you play well:
-// 1 shows the move, 2 shows the piece, 3 shows the plan, 4 you're on your own. "Show me" always reveals the move.
-const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, playing: false, replayId: 0, lastAfterCp: null, oppMistake: null, threat: null, wasInBook: true, leftBookNow: false, suggest: null, revealed: false };
+// You always try first. The card gives the idea (at help level 1), and a Hint button adds more
+// one step at a time: idea, then which piece, then the move. Threats are asked, not told.
+const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, playing: false, replayId: 0, lastAfterCp: null, oppMistake: null, threat: null, wasInBook: true, leftBookNow: false, suggest: null, revealed: false, helpStep: 0, threatQ: null, found: 0, total: 0 };
 let playBoard;
-const HELP = ["", "Show the move", "Show the piece", "Show the plan", "On my own"];
-const HELP_UP = ["", "", "Nice. Now I'll just ring the piece to move.", "Now I'll show the plan. You pick the move.", "You're finding moves yourself now. Tap Show me if you get stuck."];
+const HELP = ["", "Idea first", "Off"];
 
 function canUserMove() { return ENGINE === "ok" && !P.busy && !P.over && !P.wait && !P.playing && P.game.turn() === P.you; }
 function myTurnIdle() { return P.game.turn() === P.you && !P.busy && !P.wait && !P.playing && !P.over; }
 function kingSq(g) { if (!g.in_check()) return null; const m = boardMap(g); return Object.keys(m).find(s => m[s].type === "k" && m[s].color === g.turn()); }
-function helpStage() { return P.revealed ? 1 : S.guide.stage; }
+if (!S.guide || S.guide.stage > 2) S.guide = { stage: S.guide && S.guide.stage > 2 ? 2 : 1, streak: 0 };
 
 // ---- The suggested move, in words a beginner can follow
 function shortComment(c) {
@@ -261,6 +260,11 @@ function whyFor(fen, m) {
   if (rule) return rule;
   const info = planInfo(); const next = info.plan && info.steps.find(s => s.done === false);
   return next ? `Your plan here: ${next.t}` : "It's the engine's top choice here.";
+}
+function describeTheirs(m, who) {
+  if (m.flags.includes("k") || m.flags.includes("q")) return `${who} castled.`;
+  if (m.captured) return `${who} took your ${NAME[m.captured]} on ${m.to} with their ${NAME[m.piece]}.`;
+  return `${who} moved their ${NAME[m.piece]} to ${m.to}.`;
 }
 function describeMove(m) {
   if (m.flags.includes("k") || m.flags.includes("q")) return `Castle: move your king to ${m.to}.`;
@@ -282,21 +286,11 @@ function makeSuggest(fen, lines) {
 
 function overlay() {
   const out = { marks: {}, arrows: [] };
-  if (!myTurnIdle() || !P.hist.length && P.you === "b") return out;
-  if (P.threat && S.threat.on && !P.oppMistake) out.marks[P.threat.sq] = "threat";
-  const st = helpStage(); const sug = P.suggest;
-  if (st === 1 && sug) out.arrows.push({ from: sug.m.from, to: sug.m.to });
-  else if (st === 2 && sug) out.marks[sug.m.from] = "hint";
-  else if (st === 3) {
-    const info = planInfo(); const map = boardMap(P.game);
-    if (info.plan) out.marks[info.plan.focus] = out.marks[info.plan.focus] || "focus";
-    else {
-      const g = info.goals.items.find(i => i.done === false);
-      if (g && g.id === "develop") { const home = P.you === "w" ? { n: ["b1", "g1"], b: ["c1", "f1"] } : { n: ["b8", "g8"], b: ["c8", "f8"] }; for (const t of ["n", "b"]) for (const sq of home[t]) if (map[sq] && map[sq].type === t && map[sq].color === P.you) out.marks[sq] = "focus"; }
-      if (g && g.id === "castle") { const k = Object.keys(map).find(x => map[x].type === "k" && map[x].color === P.you); if (k) out.marks[k] = "focus"; }
-      if (g && g.id === "worst") { const w = worstPiece(map, P.you); if (w) out.marks[w.sq] = "focus"; }
-    }
-  }
+  if (!myTurnIdle()) return out;
+  if (P.threatQ && P.threatQ.answered) out.marks[P.threatQ.sq] = "threat";
+  const sug = P.suggest;
+  if (sug && P.helpStep >= 3) out.arrows.push({ from: sug.m.from, to: sug.m.to });
+  else if (sug && P.helpStep === 2) out.marks[sug.m.from] = "hint";
   return out;
 }
 function renderPlayBoard(anim) {
@@ -311,14 +305,14 @@ function setThinking(on) { $("#thinking").classList.toggle("on", on); }
 function newGame() {
   P.gid++; coachEngine.stop(); botEngine.stop(); P.replayId++; P.playing = false;
   P.opening = S.opening || "caro"; P.you = REPERTOIRE[P.opening].you;
-  Object.assign(P, { threat: null, wasInBook: true, leftBookNow: false, lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, suggest: null, revealed: false });
+  Object.assign(P, { threat: null, wasInBook: true, leftBookNow: false, lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, suggest: null, revealed: false, helpStep: 0, threatQ: null, found: 0, total: 0 });
   setTop();
   renderPlayBoard(); renderCoach();
   if (P.you === "b") botMove(); else startUserTurn();
 }
 function startUserTurn() {
   const fen = P.game.fen(); const gid = P.gid;
-  P.preFen = fen; P.pre = null; P.revealed = false;
+  P.preFen = fen; P.pre = null; P.revealed = false; P.helpStep = S.guide.stage === 1 ? 1 : 0;
   { const inBook = bookAt(P.opening, fen).length > 0; P.leftBookNow = P.wasInBook && !inBook && P.hist.length >= 4; P.wasInBook = inBook; }
   P.suggest = makeSuggest(fen, null);
   P.prePromise = coachEngine.ready.then(() => analyze(fen, "depth 18 movetime 2500", 3, j => {
@@ -347,8 +341,8 @@ async function onUserMove(m, dragged) {
   const gid = P.gid; const fenBefore = P.game.fen();
   const histBefore = P.game.history({ verbose: true });
   const mv = P.game.move(m); if (!mv) return;
-  const label = moveLabel(fenBefore, mv.san);
-  const helped = P.revealed && S.guide.stage > 1;
+  const label = moveWords(mv);
+  const usedHelp = P.helpStep; const shownIdea = P.helpStep >= 1 && P.suggest ? P.suggest.why : "";
   P.last = { from: mv.from, to: mv.to }; P.arrows = []; P.marks = {}; P.busy = true; P.theirs = null; P.suggest = null;
   P.mine = { label, san: mv.san, pending: true };
   renderPlayBoard(dragged ? null : { from: mv.from, to: mv.to }); renderCoach();
@@ -367,12 +361,14 @@ async function onUserMove(m, dragged) {
   P.lastAfterCp = after ? r.afterCp : null;
   P.hist.push({ fenBefore, move: mv, r, label });
   P.mine = { label, san: mv.san, r, fenBefore, move: mv, retry: wasRetry };
-  // Help steps back as you play well
-  const good = ["book", "best", "excellent", "good"].includes(r.cls);
-  if (good && !helped) S.guide.streak++;
-  else if (r.cls === "mistake" || r.cls === "blunder") S.guide.streak = 0;
-  const need = S.guide.stage === 1 ? 40 : 30;
-  if (S.guide.streak >= need && S.guide.stage < 4) { S.guide.stage++; S.guide.streak = 0; setTimeout(() => toast(HELP_UP[S.guide.stage]), 600); }
+  // Did you find it yourself? (the idea alone still counts as yourself)
+  const top = ["book", "best", "excellent"].includes(r.cls);
+  r.foundSelf = top && usedHelp <= 1; r.usedHelp = usedHelp; r.shownIdea = shownIdea;
+  if (!wasRetry) { P.total++; if (r.foundSelf) P.found++; }
+  if (S.guide.stage === 1) {
+    if (r.foundSelf) S.guide.streak++; else if (r.cls === "mistake" || r.cls === "blunder") S.guide.streak = 0;
+    if (S.guide.streak >= 25) { S.guide.stage = 2; S.guide.streak = 0; setTimeout(() => toast("You're finding moves well. I'll stop showing the idea first. Tap Hint if you need it."), 600); }
+  }
   save();
   const bad = r.cls === "mistake" || r.cls === "blunder";
   if (bad && !wasRetry) addMistakeCard(fenBefore, mv, r, pre, "play", label);
@@ -390,7 +386,7 @@ async function playLine(board, show, orientation, onStep, cancelled) {
     if (cancelled()) return false;
     const fb = g.fen(); const m = g.move(uciObj(show.pv[i])); if (!m) break;
     board.set({ fen: g.fen(), orientation, last: { from: m.from, to: m.to }, check: kingSq(g), animate: { from: m.from, to: m.to } });
-    onStep && onStep(moveLabel(fb, m.san), i);
+    onStep && onStep(moveWords(m), i);
     await sleep(1000);
   }
   if (cancelled()) return false;
@@ -413,7 +409,7 @@ function undoMine() {
   P.last = l ? { from: l.from, to: l.to } : null;
   P.retry = { fen: w.fenBefore, r: w.r, tries: (P.retry && P.retry.fen === w.fenBefore ? P.retry.tries : 0) + 1 };
   P.wait = null; P.pre = w.pre; P.preFen = w.fenBefore; P.prePromise = Promise.resolve(w.pre);
-  P.oppMistake = null; P.revealed = false;
+  P.oppMistake = null; P.revealed = false; P.helpStep = 0; P.threatQ = null;
   P.suggest = makeSuggest(w.fenBefore, w.pre && w.pre.lines);
 }
 function tryAgain() { cancelReplay(); undoMine(); P.arrows = []; P.mine = null; renderPlayBoard(); renderCoach(); }
@@ -428,11 +424,18 @@ async function botMove() {
   await sleep(Math.max(0, 500 - (performance.now() - t0)));
   if (P.gid !== gid) return;
   const mv = P.game.move(uciObj(uci)); if (!mv) { setThinking(false); P.busy = false; return; }
-  if (!idea) { const i = moveIdea(fen, mv); idea = i ? i.charAt(0).toUpperCase() + i.slice(1).replace(/\byour\b/g, "their") + "." : ""; }
+  if (!idea && !mv.captured) { const i = moveIdea(fen, mv); idea = i ? i.charAt(0).toUpperCase() + i.slice(1).replace(/\byour\b/g, "their") + "." : ""; }
   P.last = { from: mv.from, to: mv.to }; P.arrows = []; P.marks = {};
-  P.theirs = { label: moveLabel(fen, mv.san), idea, book: book.length > 0 };
+  P.theirs = { label: moveWords(mv), m: mv, idea, book: book.length > 0 };
   P.hist.push({ fenBefore: fen, move: mv, bot: true });
-  { const map = boardMap(P.game); const t = Object.keys(map).find(x => map[x].color === P.you && "nbrq".includes(map[x].type) && isHanging(map, x)); P.threat = t ? { sq: t, type: map[t].type } : null; }
+  { const map = boardMap(P.game); const t = Object.keys(map).find(x => map[x].color === P.you && "nbrq".includes(map[x].type) && isHanging(map, x)); P.threat = t ? { sq: t, type: map[t].type } : null;
+    P.threatQ = null;
+    if (t && S.threat.on) {
+      const others = Object.keys(map).filter(x => x !== t && map[x].color === P.you && map[x].type !== "k" && map[x].type !== "p").sort(() => Math.random() - 0.5).slice(0, 2);
+      if (others.length < 2) others.push(...Object.keys(map).filter(x => x !== t && !others.includes(x) && map[x].color === P.you && map[x].type === "p").slice(0, 2 - others.length));
+      const opts = [t, ...others].map(sq => ({ sq, label: `${NAME[map[sq].type].replace(/^./, c => c.toUpperCase())} on ${sq}` })).sort(() => Math.random() - 0.5);
+      P.threatQ = { sq: t, type: map[t].type, opts, answered: false, right: null };
+    } }
   setThinking(false); P.busy = false;
   renderPlayBoard({ from: mv.from, to: mv.to });
   if (checkOver()) return;
@@ -457,7 +460,8 @@ function finishGame(res, why) {
   const slips = mine.filter(h => h.r.tags && h.r.tags.some(t => t === "hangs" || t === "fork" || t === "allows-mate")).length;
   if (S.threat.on) { S.threat.clean = slips ? 0 : S.threat.clean + 1; if (S.threat.clean >= 3) { S.threat.on = false; setTimeout(() => toast("You're catching threats yourself now. Threat warnings are off."), 4200); } }
   else if (slips >= 2) { S.threat.on = true; S.threat.clean = 0; setTimeout(() => toast("Threat warnings are back on for a bit."), 4200); }
-  if (S.guide.stage >= 2 && P.over.count.blunder + P.over.count.mistake >= 3) { S.guide.stage--; S.guide.streak = 0; setTimeout(() => toast("I'll give you a bit more help for now."), 2600); }
+  P.over.found = P.found; P.over.total = P.total;
+  if (S.guide.stage === 2 && P.over.count.blunder + P.over.count.mistake >= 3) { S.guide.stage = 1; S.guide.streak = 0; setTimeout(() => toast("I'll show the idea first again for a bit."), 2600); }
   save(); renderPlayBoard(); renderCoach();
 }
 function gamePgn() {
@@ -479,28 +483,39 @@ function feedbackHTML(r) {
 function watchHTML(r) { return P.playing ? `<p class="watch" id="watch">${esc(r.show.caption)}</p>` : `<div><button class="link" data-act="watch">Replay the moves</button></div>`; }
 function contextHTML() {
   const opp = COLOR[other(P.you)];
-  const r = P.mine && P.mine.r;
-  const nice = r && ["book", "best", "excellent"].includes(r.cls) ? (r.punished ? "You punished their mistake. " : ["Nice. ", "Good. ", "Yes. "][P.hist.length % 3]) : "";
-  if (P.retry) return "That move was a mistake. Try a better one.";
-  if (P.oppMistake) { const c = CLS[P.oppMistake.cls]; return `<em class="tone-${c.tone}">${c.nag}</em> ${opp}'s <b>${esc(P.oppMistake.label)}</b> was a ${P.oppMistake.cls}. You can punish it.`; }
-  if (P.threat && S.threat.on) return `${nice}<span class="tone-worse">${opp} is attacking your ${NAME[P.threat.type]} on ${P.threat.sq}.</span>`;
-  if (P.leftBookNow) return `${nice}The opening is over. From here, follow the plan.`;
-  if (P.theirs) return `${nice}${opp} played <b>${esc(P.theirs.label)}</b>.${P.theirs.idea ? " " + bold(P.theirs.idea) : ""}`;
+  if (P.retry) return "That move was a mistake. Try again.";
+  if (P.oppMistake) { const c = CLS[P.oppMistake.cls]; return `<em class="tone-${c.tone}">${c.nag}</em> ${opp} just made a ${P.oppMistake.cls === "blunder" ? "big mistake" : "mistake"}. Find how to punish it.`; }
+  if (P.leftBookNow) return "The opening is over. Think about your plan.";
+  if (P.theirs) return `${esc(P.theirs.m ? describeTheirs(P.theirs.m, opp) : opp + " moved.")}${P.theirs.idea && !P.threatQ ? " " + esc(P.theirs.idea) : ""}`;
   return P.you === "b" ? "You're Black. White moves first." : "You're White, so you move first.";
 }
+function lastMoveHTML() {
+  const r = P.mine && P.mine.r; if (!r) return "";
+  if (["book", "best", "excellent"].includes(r.cls)) {
+    const head = r.punished ? "You punished it." : r.foundSelf ? "You found it." : "Good move.";
+    let why = r.rule || (r.cls === "book" ? r.msg[0] : "");
+    if (r.shownIdea) why = "";  // you just read the idea; don't repeat it
+    return `<p class="got enter"><b>✓ ${head}</b>${why ? " " + esc(why) : ""}</p>`;
+  }
+  if (["good", "inaccuracy"].includes(r.cls)) return `<div class="card soft-card enter">${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}</div>`;
+  return "";
+}
 function nextCardHTML() {
-  const st = helpStage(); const sug = P.suggest; const info = planInfo();
-  let main = "", why = "", btn = "";
-  const firstEver = S.stats.played === 0 && !P.hist.some(x => !x.bot);
-  if (st <= 2 && !sug) { main = "Finding your best move…"; }
-  else if (st === 1) { main = describeMove(sug.m); why = sug.why + (firstEver ? " Tap the piece, then tap where the arrow points." : ""); }
-  else if (st === 2) { main = `Move the ${NAME[sug.m.piece]} in the blue box.`; why = sug.why; }
-  else if (st === 3) {
-    if (info.plan) { const next = info.steps.find(s => s.done === false) || info.steps[0]; main = `Plan: ${next.t}`; why = pressureText(pressureOn(boardMap(P.game), info.plan.focus, P.you), COLOR[other(P.you)]); }
-    else { const g = info.goals.items.find(i => i.done === false) || info.goals.items.find(i => i.done === null); main = g ? `Goal: ${g.t}` : "Your move."; why = g && g.id === "develop" ? "The ringed pieces still need to come out." : g && g.id === "castle" ? "Your king is ringed. Get it safe." : ""; }
-  } else { main = "Your move."; why = "Look at checks, captures and threats first."; }
-  if (S.guide.stage > 1 && !P.revealed && sug) btn = `<button class="pill" data-act="reveal">Show me</button>`;
-  return `<div class="card next enter"><p class="ctx">${contextHTML()}</p><div class="do-row"><h2 class="do">${esc(main)}</h2>${btn}</div>${why ? `<p class="why">${bold(why)}</p>` : ""}${P.hist.length ? `<div><button class="link" data-act="plan">See the plan</button></div>` : ""}</div>`;
+  const sug = P.suggest; const firstEver = S.stats.played === 0 && !P.hist.some(x => !x.bot);
+  // Threat question comes first: you spot it, I don't tell you
+  if (P.threatQ && !P.threatQ.answered) {
+    return `<div class="card next enter"><p class="ctx">${contextHTML()}</p><h2 class="do">Something of yours is under attack. Which piece?</h2>
+      <div class="choice tq">${P.threatQ.opts.map(o => `<button class="opt" data-tq="${o.sq}"><span><b>${esc(o.label)}</b></span></button>`).join("")}</div></div>`;
+  }
+  let lines = "";
+  if (P.threatQ && P.threatQ.answered) lines += `<p class="why ${P.threatQ.right ? "tone-good" : "tone-worse"}"><b>${P.threatQ.right ? "Right." : "Not that one."}</b> Your ${NAME[P.threatQ.type]} on ${P.threatQ.sq} is under attack. Save it or defend it.</p>`;
+  if (P.helpStep >= 1) lines += `<p class="why"><b>Idea:</b> ${sug ? bold(sug.why) : "One second…"}</p>`;
+  if (P.helpStep >= 2 && sug) lines += `<p class="why"><b>Piece:</b> the ${NAME[sug.m.piece]} in the blue box.</p>`;
+  if (P.helpStep >= 3 && sug) lines += `<p class="why"><b>Move:</b> ${esc(describeMove(sug.m))}</p>`;
+  if (firstEver) lines += `<p class="why">Tap a piece, then tap where it should go.</p>`;
+  const label = ["Hint", "Which piece?", "Show the move"][P.helpStep];
+  const btn = P.helpStep < 3 ? `<button class="pill" data-act="help">${label}</button>` : "";
+  return `<div class="card next enter"><p class="ctx">${contextHTML()}</p><div class="do-row"><h2 class="do">${P.retry ? "Find a better move." : "Your move."}</h2>${btn}</div>${lines}${P.hist.length ? `<div><button class="link" data-act="plan">See the plan</button></div>` : ""}</div>`;
 }
 function renderCoach() {
   const el = $("#coach"); if (!el) return;
@@ -511,7 +526,7 @@ function renderCoach() {
   } else if (P.over) {
     const o = P.over; const t = o.res === "won" ? "You won" : o.res === "lost" ? "You lost" : "Draw";
     const n = o.count.blunder + o.count.mistake;
-    h = `<div class="card enter"><p class="status">${t}</p><p class="say">${esc(o.why)} ${n ? `${n} mistake${n > 1 ? "s" : ""} saved to Practice.` : "No big mistakes."}</p>
+    h = `<div class="card enter"><p class="status">${t}</p><p class="say">${esc(o.why)} You found <b>${o.found} of ${o.total}</b> moves yourself.</p><p class="better">${n ? `${n} mistake${n > 1 ? "s" : ""} saved to Practice.` : "No big mistakes."}</p>
       <div class="actions"><button class="btn primary" data-act="new">Play again</button><button class="btn soft" data-act="review">Review</button></div></div>`;
   } else if (P.wait) {
     const r = P.wait.r;
@@ -520,9 +535,7 @@ function renderCoach() {
   } else if (ENGINE === "loading" && P.game.turn() === P.you) {
     h = `<div class="turn"><p>Loading the engine…</p></div>`;
   } else if (myTurnIdle()) {
-    h = nextCardHTML();
-    const r = P.mine && P.mine.r;
-    if (r && ["good", "inaccuracy"].includes(r.cls)) h += `<div class="card soft-card enter">${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}</div>`;
+    h = lastMoveHTML() + nextCardHTML();
   } else {
     h = `<div class="turn"><p>${P.mine && P.mine.pending ? "Checking your move…" : `${opp} is thinking…`}</p></div>`;
   }
@@ -563,8 +576,8 @@ function openSettings() {
   openSheet(`<h2>Settings</h2>
     <section><h3>Opening</h3><div class="choice">${openingOptions(S.opening)}</div></section>
     <section><h3>Opponent strength</h3><div class="stepper"><button class="btn" data-lv="-1" aria-label="Weaker">−</button><output id="lv">${levelName(S.level)}</output><button class="btn" data-lv="1" aria-label="Stronger">+</button></div><p class="sub">Goes up when you win, down when you lose.</p></section>
-    <section><h3>Help</h3><div class="seg" role="group" aria-label="Help level">${[1, 2, 3, 4].map(i => `<button data-help="${i}" class="${S.guide.stage === i ? "on" : ""}">${["", "Move", "Piece", "Plan", "Off"][i]}</button>`).join("")}</div><p class="sub" id="help-sub">${HELP[S.guide.stage]}. It steps back on its own as you play well.</p></section>`, sh => {
-    sh.querySelectorAll("[data-help]").forEach(b => b.onclick = () => { S.guide.stage = +b.dataset.help; S.guide.streak = 0; save(); sh.querySelectorAll("[data-help]").forEach(x => x.classList.toggle("on", x === b)); sh.querySelector("#help-sub").textContent = HELP[S.guide.stage] + ". It steps back on its own as you play well."; renderPlayBoard(); renderCoach(); });
+    <section><h3>Help</h3><div class="seg" role="group" aria-label="Help level">${[1, 2].map(i => `<button data-help="${i}" class="${S.guide.stage === i ? "on" : ""}">${HELP[i]}</button>`).join("")}</div><p class="sub" id="help-sub">${S.guide.stage === 1 ? "Each turn shows the idea. You find the move." : "Nothing shown. Tap Hint when you need it."}</p></section>`, sh => {
+    sh.querySelectorAll("[data-help]").forEach(b => b.onclick = () => { S.guide.stage = +b.dataset.help; S.guide.streak = 0; save(); sh.querySelectorAll("[data-help]").forEach(x => x.classList.toggle("on", x === b)); sh.querySelector("#help-sub").textContent = S.guide.stage === 1 ? "Each turn shows the idea. You find the move." : "Nothing shown. Tap Hint when you need it."; if (myTurnIdle()) P.helpStep = Math.max(P.helpStep, S.guide.stage === 1 ? 1 : 0); renderPlayBoard(); renderCoach(); });
     sh.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { const ch = S.opening !== b.dataset.open; S.opening = b.dataset.open; save(); closeSheet(); if (ch) newGame(); });
     sh.querySelectorAll("[data-lv]").forEach(b => b.onclick = () => { S.level = Math.max(0, Math.min(LEVELS.length - 1, S.level + +b.dataset.lv)); sh.querySelector("#lv").textContent = levelName(S.level); setTop(); save(); });
   });
@@ -599,7 +612,7 @@ async function lineAdvance() {
   const ld = PR.ld; if (!ld) return; const tok = ld.token;
   while (ld.i < ld.moves.length && ld.g.turn() !== ld.me) {
     const fen = ld.g.fen(); const m = ld.g.move(ld.moves[ld.i].san); ld.i++;
-    ld.last = { from: m.from, to: m.to }; ld.theirs = { label: moveLabel(fen, m.san), c: ld.moves[ld.i - 1].c };
+    ld.last = { from: m.from, to: m.to }; ld.theirs = { label: describeTheirs(m, COLOR[other(ld.me)]), c: ld.moves[ld.i - 1].c };
     renderPractice({ from: m.from, to: m.to });
     await sleep(650);
     if (!PR.ld || PR.ld.token !== tok) return;
@@ -619,7 +632,7 @@ function onLineMove(m) {
   } else {
     ld.g.undo();
     if (!ld.fix && !ld.learn) ld.misses++;
-    ld.fix = { label: moveLabel(fen, want.san), c: want.c, tried: mv.san };
+    ld.fix = { label: describeMove(new Chess(fen).move(want.san)), c: want.c, tried: moveWords(mv) };
     ld.flash = ""; renderPractice();
   }
 }
@@ -658,9 +671,9 @@ function renderLine(v, anim) {
     const head = ld.learn ? "New line. Play the arrow moves and read why." : ld.test && ld.card.box === 0 ? "From memory now. No arrows." : "Play your moves from memory.";
     h += `<div class="turn"><p>${ld.waiting ? "Your move." : `${opp} is moving…`}<span>${head}</span></p></div>`;
     if (ld.flash) h += `<p class="say enter tone-good"><b>${ld.flash}</b></p>`;
-    if (ld.fix) h += `<div class="card enter"><div class="verdict"><span class="nag tone-bad" aria-hidden="true">?</span><h2 class="tone-bad">Not this line's move</h2><span class="mv">You tried ${esc(ld.fix.tried)}</span></div><p class="say">Play <b>${esc(ld.fix.label)}</b>.${ld.fix.c ? " " + esc(ld.fix.c) : ""}</p></div>`;
-    else if (want && ld.learn) h += `<div class="card enter"><p class="say">Play <b>${esc(moveLabel(ld.g.fen(), want.san))}</b>.${want.c ? " " + esc(want.c) : ""}</p></div>`;
-    else if (ld.theirs && ld.theirs.c && ld.learn) h += `<p class="better">${opp} played <b>${esc(ld.theirs.label)}</b>. ${esc(ld.theirs.c)}</p>`;
+    if (ld.fix) h += `<div class="card enter"><div class="verdict"><span class="nag tone-bad" aria-hidden="true">?</span><h2 class="tone-bad">Not this line's move</h2><span class="mv">You tried ${esc(ld.fix.tried)}</span></div><p class="say"><b>${esc(ld.fix.label)}</b>${ld.fix.c ? " " + esc(ld.fix.c) : ""}</p></div>`;
+    else if (want && ld.learn) h += `<div class="card enter"><p class="say"><b>${esc(describeMove(new Chess(ld.g.fen()).move(want.san)))}</b>${want.c ? " " + esc(want.c) : ""}</p></div>`;
+    else if (ld.theirs && ld.theirs.c && ld.learn) h += `<p class="better">${esc(ld.theirs.label)} ${esc(ld.theirs.c)}</p>`;
   }
   const co = v.querySelector("#pr-coach"); co.innerHTML = h;
   co.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => { if (b.dataset.pr === "next") { PR.i++; loadCard(); } });
@@ -681,7 +694,7 @@ async function onPracticeMove(m) {
       if (loss < 4) { ok = true; note = c.kind === "concept" ? "That works too. The idea here, though, is:" : "That works too."; }
     } catch (e) { }
   }
-  PR.res = { ok, san: mv.san, note }; PR.afterFen = g.fen();
+  PR.res = { ok, san: moveWords(mv), note }; PR.afterFen = g.fen();
   gradeCard(c, ok);
   PR.state = "answered"; renderPractice();
 }
@@ -806,7 +819,7 @@ async function startReview(parsed, side) {
     RV.R[i] = explainMove({ fenBefore: fens[i], move: moves[i], me, before: RV.A[i], after: RV.A[i + 1], opening: me === side ? RV.opening : null, history: moves.slice(0, i), book: me === side && RV.opening ? bookAt(RV.opening, fens[i]) : [] });
     if (me === side && ["mistake", "blunder"].includes(RV.R[i].cls)) {
       RV.key.push(i);
-      if (addMistakeCard(fens[i], moves[i], RV.R[i], RV.A[i], "review", moveLabel(fens[i], moves[i].san))) added++;
+      if (addMistakeCard(fens[i], moves[i], RV.R[i], RV.A[i], "review", moveWords(moves[i]))) added++;
     }
   }
   RV.key = RV.key.sort((a, b) => RV.R[b].loss - RV.R[a].loss).slice(0, 5).sort((a, b) => a - b);
@@ -823,7 +836,7 @@ function reviewSummary() {
     let left = null;
     for (const x of mine) { const b = bookAt(RV.opening, RV.fens[x.i]); if (!b.length) break; if (!b.some(bb => bb.san === RV.moves[x.i].san)) { left = { x, b }; break; } }
     const name = REPERTOIRE[RV.opening].name;
-    open = left ? `You left the ${name} repertoire with ${moveLabel(RV.fens[left.x.i], RV.moves[left.x.i].san)}. The repertoire move was ${moveLabel(RV.fens[left.x.i], left.b.sort((a, c) => c.weight - a.weight)[0].san)}.` : `You stayed in the ${name} repertoire the whole way through the opening.`;
+    open = left ? `You left the ${name} moves with ${moveWords(RV.moves[left.x.i])}. The ${name} move there is ${sanWords(RV.fens[left.x.i], left.b.sort((a, c) => c.weight - a.weight)[0].san)}.` : `You played the ${name} moves all the way through the opening.`;
   } else open = "This game wasn't a Caro-Kann or Queen's Gambit, so there's no repertoire check.";
   return `<p class="say">You played ${RV.you === "w" ? "White" : "Black"}${RV.headers[RV.you === "w" ? "Black" : "White"] ? " against " + esc(RV.headers[RV.you === "w" ? "Black" : "White"]) : ""}. ${parts.length ? "You made " + parts.join(", ") + "." : "No big mistakes."}</p><p class="say">${bold(open)}</p>`;
 }
@@ -875,7 +888,7 @@ function renderReview(anim) {
   let h = "";
   if (inKey) {
     const ki = RV.key[RV.k]; const m = RV.moves[ki]; const r = RV.R[ki];
-    const label = moveLabel(RV.fens[ki], m.san);
+    const label = moveWords(m);
     if (RV.k === 0 && RV.kState === "ask") h += reviewSummary();
     if (RV.kState === "ask") {
       rvBoard.set({ fen: RV.fens[ki], orientation: RV.you, last: ki > 0 ? { from: RV.moves[ki - 1].from, to: RV.moves[ki - 1].to } : null });
@@ -902,9 +915,9 @@ function renderReview(anim) {
     rvBoard.set({ fen: RV.fens[i], orientation: RV.you, last: last ? { from: last.from, to: last.to } : null, arrows, animate: anim });
     if (last) {
       const r = RV.R[i - 1];
-      if (last.color === RV.you) h += verdictHTML(r, moveLabel(RV.fens[i - 1], last.san)) + feedbackHTML(r);
-      else if (pun) { const c = CLS[r.cls]; h += `<div class="card enter"><div class="verdict"><span class="nag tone-${c.tone}" aria-hidden="true">${c.nag}</span><h2 class="tone-${c.tone}">${last.color === "w" ? "White" : "Black"}'s ${r.cls}</h2><span class="mv">${esc(moveLabel(RV.fens[i - 1], last.san))}</span></div><p class="say">You could punish it with <b>${esc(pun.san)}</b>.</p></div>`; }
-      else h += `<p class="theirs">${last.color === "w" ? "White" : "Black"} played <b>${esc(moveLabel(RV.fens[i - 1], last.san))}</b>.</p>`;
+      if (last.color === RV.you) h += verdictHTML(r, moveWords(last)) + feedbackHTML(r);
+      else if (pun) { const c = CLS[r.cls]; h += `<div class="card enter"><div class="verdict"><span class="nag tone-${c.tone}" aria-hidden="true">${c.nag}</span><h2 class="tone-${c.tone}">${last.color === "w" ? "White" : "Black"}'s ${r.cls}</h2><span class="mv">${esc(moveWords(last))}</span></div><p class="say">You could punish it: <b>${esc(moveWords(pun))}</b>.</p></div>`; }
+      else h += `<p class="theirs">${esc(describeTheirs(last, last.color === "w" ? "White" : "Black"))}</p>`;
     } else h += `<p class="sub">Starting position.</p>`;
     h += `<div class="nav"><button class="btn" data-rv="first" aria-label="First move">«</button><button class="btn" data-rv="prev" aria-label="Previous move">‹</button><button class="btn" data-rv="nextmv" aria-label="Next move">›</button><button class="btn" data-rv="last" aria-label="Last move">»</button></div>`;
     h += `<div class="moves" aria-label="Moves">${RV.moves.map((m, j) => { const mark = (m.color === RV.you || ["mistake", "blunder"].includes(RV.R[j].cls)) ? CLS[RV.R[j].cls].nag : ""; return `${m.color === "w" ? `<span class="n">${Math.floor(j / 2) + 1}.</span>` : ""}<button data-mv="${j + 1}" class="${j + 1 === i ? "on" : ""}">${esc(m.san)}${mark ? `<span class="tone-${CLS[RV.R[j].cls].tone}">${mark}</span>` : ""}</button>`; }).join("")}</div>`;
@@ -948,11 +961,13 @@ const ICONS = {
 function wire() {
   playBoard = new Board($("#play-board"), { interactive: canUserMove, onMove: (m, d) => onUserMove(m, d) });
   $("#coach").addEventListener("click", e => {
+    const t = e.target.closest("[data-tq]");
+    if (t && P.threatQ && !P.threatQ.answered) { P.threatQ.answered = true; P.threatQ.right = t.dataset.tq === P.threatQ.sq; renderPlayBoard(); renderCoach(); return; }
     const b = e.target.closest("[data-act]"); if (!b) return;
     const a = b.dataset.act;
     if (a === "plan") openPlanSheet();
     if (a === "retry") tryAgain(); if (a === "keep") keepPlaying();
-    if (a === "reveal") { P.revealed = true; renderPlayBoard(); renderCoach(); }
+    if (a === "help") { P.helpStep = Math.min(3, P.helpStep + 1); renderPlayBoard(); renderCoach(); }
     if (a === "new") newGame();
     if (a === "review") { const parsed = parseGame(gamePgn()); location.hash = "#review"; startReview(parsed, P.you); }
     if (a === "watch") { const r = (P.wait || P.mine || {}).r; if (r && !P.busy) replayPlay(r); }

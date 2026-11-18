@@ -132,6 +132,14 @@ function sanLine(fen, moves) {
   });
   return parts.join(" ");
 }
+// A move in plain words: "knight g8 → e7", "pawn takes on d5", "castle"
+function moveWords(m) {
+  if (!m) return "";
+  if (m.flags && (m.flags.includes("k") || m.flags.includes("q"))) return "castle";
+  if (m.captured) return `${NAME[m.piece]} takes on ${m.to}`;
+  return `${NAME[m.piece]} ${m.from} → ${m.to}`;
+}
+function sanWords(fen, san) { const m = new Chess(fen).move(san); return m ? moveWords(m) : san; }
 function moveLabel(fen, san) {
   const [, turn, , , , num] = fen.split(" ");
   return turn === "w" ? `${num}.${san}` : `${num}...${san}`;
@@ -196,19 +204,19 @@ function pickWeighted(list) {
 function moveIdea(fen, m) {
   // m: verbose move in the position `fen`
   const g = new Chess(fen); const map = boardMap(g);
-  if (m.flags.includes("k") || m.flags.includes("q")) return "it gets your king safe by castling";
+  if (m.flags.includes("k") || m.flags.includes("q")) return "it castles your king to safety";
   const after = new Chess(fen); after.move({ from: m.from, to: m.to, promotion: m.promotion });
   if (after.in_checkmate()) return "it's checkmate";
   if (m.captured) return `it takes the ${NAME[m.captured]} on ${m.to}`;
-  if (after.in_check()) return "it gives check and keeps the initiative";
+  if (after.in_check()) return "it gives check";
   const home = m.color === "w" ? "1" : "8";
-  if ((m.piece === "n" || m.piece === "b") && m.from[1] === home) return `it brings your ${NAME[m.piece]} into the game`;
-  if (m.piece === "p" && "de".includes(m.from[0])) return "it fights for the center";
-  if (m.piece === "p" && m.from[0] === "c") return "it challenges the center from the side";
+  if ((m.piece === "n" || m.piece === "b") && m.from[1] === home) return `it brings your ${NAME[m.piece]} out`;
+  if (m.piece === "p" && "de".includes(m.from[0])) return "it puts a pawn in the middle";
+  if (m.piece === "p" && m.from[0] === "c") return "it attacks the middle from the side";
   if (m.piece === "r") {
     const amap = boardMap(after); const f = m.to[0]; let own = false;
     for (let r = 1; r <= 8; r++) { const p = amap[f + r]; if (p && p.type === "p" && p.color === m.color) own = true; }
-    if (!own) return "it puts your rook on an open file";
+    if (!own) return "it puts your rook on a column with no pawns";
   }
   // threatens something?
   const amap = boardMap(after);
@@ -244,7 +252,7 @@ function principleNotes(ctx) {
   const dev = minorsStatus(map, me);
   if (myNum <= 12) {
     if (move.piece === "q" && !move.captured && myNum <= 8 && dev.out < 3)
-      notes.push("Queen out too early. It gets chased while your opponent develops.");
+      notes.push("Queen out too early. It gets chased while your opponent brings out pieces.");
     if ("nbrq".includes(move.piece) && !move.captured && dev.out < dev.total) {
       const movedBefore = mine.some(h => h.to === move.from);
       const threatened = attackers(map, move.from, other(me)).length > 0;
@@ -254,12 +262,12 @@ function principleNotes(ctx) {
     if (move.piece === "k" && !move.flags.includes("k") && !move.flags.includes("q") && !hasCastled(history, me, map))
       notes.push("Your king moved, so you can't castle anymore.");
     if (move.piece === "p" && "abgh".includes(move.from[0]) && dev.out < 2 && myNum <= 8)
-      notes.push("Edge pawn moves don't develop anything.");
+      notes.push("Edge pawn moves don't help. Bring out pieces instead.");
   }
   if (opening === "caro" && me === "b" && move.san === "e6" && map.c8 && map.c8.type === "b" && map.c6 && map.c6.type === "p") {
     const bm = g.moves({ square: "c8", verbose: true }).map(x => x.to);
     if (bm.includes("f5") || bm.includes("g4"))
-      notes.push("Caro-Kann rule: bishop out before ...e6, or it gets locked in.");
+      notes.push("Get your c8 bishop out before e6, or your pawns block it in.");
   }
   if (move.piece === "p" && "fgh".includes(move.from[0]) && hasCastled(history, me, map)) {
     const kSq = Object.keys(map).find(s => map[s].type === "k" && map[s].color === me);
@@ -295,56 +303,56 @@ function hitsChainBase(map, sq, c) {
     const [tf, tr] = sqFR(t);
     const guarded = [-1, 1].some(x => isTheirPawn(frSq(tf + x, tr + d)));
     const holdsChain = [-1, 1].some(x => isTheirPawn(frSq(tf + x, tr - d)));
-    if (!guarded && holdsChain) return true;
+    if (!guarded && holdsChain) { const up = [-1, 1].map(x => frSq(tf + x, tr - d)).find(isTheirPawn); return { t, up }; }
   }
-  return false;
+  return null;
 }
 function principleFor(fen, m, me) {
   const g = new Chess(fen); const map = boardMap(g); const num = +fen.split(" ")[5];
   const phase = gamePhase(map, num);
   const after = new Chess(fen); after.move({ from: m.from, to: m.to, promotion: m.promotion }); const amap = boardMap(after);
-  if (after.in_checkmate()) return "Look at every check. Some of them are checkmate.";
+  if (after.in_checkmate()) return "Look at every check first. Some are checkmate.";
   if (m.captured) {
     const defended = attackers(map, m.to, other(me)).length > 0;
-    if (!defended) return "Take free material when it's safe.";
-    if (VAL[m.captured] > VAL[m.piece]) return "Trade a smaller piece for a bigger one when you can.";
-    if (m.piece === "p" && Math.abs(3.5 - FILES.indexOf(m.to[0])) < Math.abs(3.5 - FILES.indexOf(m.from[0]))) return "Capture toward the center with your pawns.";
-    if (matDiff(map, me) >= 2 && VAL[m.captured] === VAL[m.piece]) return "When you're ahead, trade pieces.";
+    if (!defended) return "If nothing guards a piece, take it.";
+    if (VAL[m.captured] > VAL[m.piece]) return "Swap a cheap piece for an expensive one when you can.";
+    if (m.piece === "p" && Math.abs(3.5 - FILES.indexOf(m.to[0])) < Math.abs(3.5 - FILES.indexOf(m.from[0]))) return "When a pawn takes, take toward the middle of the board.";
+    if (matDiff(map, me) >= 2 && VAL[m.captured] === VAL[m.piece]) return "When you're ahead, swap pieces. Fewer pieces, easier win.";
   }
-  if (m.piece !== "k" && isHanging(map, m.from)) return "First, save pieces that are under attack.";
+  if (m.piece !== "k" && isHanging(map, m.from)) return "First, save pieces that are being attacked.";
   const mine = Object.keys(map).filter(x => map[x].color === me && x !== m.from);
-  if (mine.some(x => isHanging(map, x) && !isHanging(amap, x))) return "Protect your loose pieces before you start a plan.";
-  if (m.flags.includes("k") || m.flags.includes("q")) return "Castle early to keep your king safe.";
-  if (phase === "endgame" && m.piece === "k") return "In the endgame, your king is a fighter. Bring it to the center.";
-  if (m.piece === "p" && isPassed(amap, m.to, me) && phase !== "opening") return "Passed pawns must be pushed.";
-  if (m.piece === "p" && hitsChainBase(amap, m.to, me)) return "Attack a pawn chain at its base.";
-  if (m.piece === "p" && ["c4", "c5", "d4", "d5", "e4", "e5"].includes(m.to)) return "Fight for the center with your pawns.";
+  if (mine.some(x => isHanging(map, x) && !isHanging(amap, x))) return "Protect pieces that nothing is guarding.";
+  if (m.flags.includes("k") || m.flags.includes("q")) return "Castle early. It tucks your king safely into the corner.";
+  if (phase === "endgame" && m.piece === "k") return "With few pieces left, use your king. Walk it to the middle.";
+  if (m.piece === "p" && isPassed(amap, m.to, me) && phase !== "opening") return "A pawn with no enemy pawns ahead can become a queen. Push it.";
+  if (m.piece === "p") { const cb = hitsChainBase(amap, m.to, me); if (cb) return `Attack the pawn on ${cb.t}. It's holding up the pawn on ${cb.up}.`; }
+  if (m.piece === "p" && ["c4", "c5", "d4", "d5", "e4", "e5"].includes(m.to)) return "Pawns in the middle of the board give you more room.";
   const home = me === "w" ? "1" : "8";
-  if ((m.piece === "n" || m.piece === "b") && m.from[1] === home && phase !== "endgame") return "In the opening, bring out a new piece every move.";
-  if (m.piece === "r") { const P = pawnsOf(amap, me); if (!fileHas(P, m.to[0])) return "Put your rooks on open files."; }
+  if ((m.piece === "n" || m.piece === "b") && m.from[1] === home && phase !== "endgame") return "At the start, bring out a new piece every move.";
+  if (m.piece === "r") { const P = pawnsOf(amap, me); if (!fileHas(P, m.to[0])) return "Rooks are strongest on columns with no pawns."; }
   const targets = attacksFrom(amap, m.to).filter(x => amap[x] && amap[x].color !== me && amap[x].type !== "k" && (amap[x].type !== "p" || !attackers(amap, x, other(me)).length) && (VAL[amap[x].type] > VAL[m.piece] || !attackers(amap, x, other(me)).length));
-  if (targets.length >= 2) return "Attack two things at once. They can't save both.";
+  if (targets.length >= 2) return "Attack two things at once. They can only save one.";
   if (targets.length) {
     const t = targets[0]; const tp = amap[t];
-    if (tp.type === "p" && ["d4", "d5", "e4", "e5"].includes(t)) return "A center pawn defended only by pieces can often be won. Attack it more times than it's defended.";
-    return "Make threats that force your opponent to react.";
+    if (tp.type === "p" && ["d4", "d5", "e4", "e5"].includes(t)) return `Only pieces guard the pawn on ${t}. Attack it more times than it's guarded.`;
+    return "Attack something. Then they have to answer you.";
   }
   const before = mobility(map, m.from), afterMob = mobility(amap, m.to);
-  if ("nbrq".includes(m.piece) && afterMob - before >= 3) return "Improve your worst piece. Put it where it does more.";
+  if ("nbrq".includes(m.piece) && afterMob - before >= 3) return "Move a piece that isn't doing much to a square where it does more.";
   return null;
 }
 function trapRule(fen, san) { trapNote(fen, san); const t = TRAPMAP.get(fenKey(fen) + "|" + san); return t ? t.rule : null; }
 function ruleForMistake(tags, msg) {
-  if (tags.includes("allows-mate")) return "Before every move, look at all of your opponent's checks.";
-  if (tags.includes("missed-mate")) return "Look at every check first. Some of them are checkmate.";
+  if (tags.includes("allows-mate")) return "Before every move, look at every check your opponent could give.";
+  if (tags.includes("missed-mate")) return "Look at every check first. Some are checkmate.";
   if (tags.includes("fork")) return "Watch for one piece attacking two of yours at once.";
-  if (tags.includes("hangs")) return /for free|hanging/.test(msg) ? "Before every move, ask: what can my opponent take?" : "Count attackers and defenders before you put a piece there.";
+  if (tags.includes("hangs")) return /for free|unprotected/.test(msg) ? "Before every move, ask: what can my opponent take?" : "Before moving there, count how many pieces attack it and how many guard it.";
   return null;
 }
 // Short ideas, for "Better: Nf6, develops your knight."
 function shortIdea(fen, m) {
   const i = moveIdea(fen, m); if (!i) return "";
-  return i.replace(/^it /, "").replace("gets your king safe by castling", "castles your king to safety").replace("'s checkmate", "is checkmate").replace("brings your ", "develops your ").replace(" into the game", "").replace("gives check and keeps the initiative", "gives check").replace("puts your rook on an open file", "puts a rook on the open file");
+  return i.replace(/^it /, "").replace("'s checkmate", "is checkmate");
 }
 function settleIndex(fen, pv, max = 6) {
   const g = new Chess(fen); let lastCap = 0;
@@ -373,11 +381,11 @@ function explainMove(ctx) {
   const bad = ["inaccuracy", "mistake", "blunder"].includes(cls);
   const bookMove = book && book.length ? book.slice().sort((a, b) => b.weight - a.weight)[0] : null;
   const trap = trapNote(fenBefore, move.san);
-  const betterLine = () => (!best || best.san === move.san) ? "" : `Better: ${best.san}`;
+  const betterLine = () => (!best || best.san === move.san) ? "" : `Better: ${moveWords(best)}`;
 
   if (cls === "book") {
     const b = book.find(x => x.san === move.san);
-    out.msg.push(b && b.c ? b.c : "The main repertoire move.");
+    out.msg.push(b && b.c ? b.c : "That's the right opening move.");
     return out;
   }
   if (!bad) {
@@ -387,7 +395,7 @@ function explainMove(ctx) {
     else out.msg.push(cls === "best" ? "That's the top move." : cls === "excellent" ? "Excellent move." : "Good move.");
     if (cls === "good") { out.better = betterLine(); out.rule = best ? principleFor(fenBefore, best, me) : null; }
     else out.rule = principleFor(fenBefore, move, me);
-    if (bookMove && bookMove.san !== move.san && cls !== "best" && (!best || bookMove.san !== best.san || cls !== "good")) out.better = (out.better ? out.better + ". " : "") + `Repertoire move: ${bookMove.san}`;
+    if (bookMove && bookMove.san !== move.san && cls !== "best" && (!best || bookMove.san !== best.san || cls !== "good")) out.better = (out.better ? out.better + ". " : "") + `Opening move here: ${sanWords(fenBefore, bookMove.san)}`;
     return out;
   }
 
@@ -405,42 +413,42 @@ function explainMove(ctx) {
     fromAfter(Math.min(2 * n - 1, 7), "Watch:");
   } else if (bestLine.score.mate != null && bestLine.score.mate > 0 && !(afterSc && afterSc.mate != null && afterSc.mate < 0)) {
     out.tags.push("missed-mate");
-    out.msg.push(`You had checkmate with ${best.san}.`);
-    fromBefore(Math.min(2 * bestLine.score.mate - 1, 7), "You missed:");
+    out.msg.push(`You had checkmate: ${moveWords(best)}.`);
+    fromBefore(Math.min(2 * bestLine.score.mate - 1, 7), "What you missed:");
   } else if (wpB >= 80 && loss >= 15) {
     out.tags.push("missed-win");
-    out.msg.push(`You missed a winning move: ${best.san}.`);
-    fromBefore(Math.min(5, bestLine.pv.length), "You missed:");
+    out.msg.push(`You missed a winning move: ${moveWords(best)}.`);
+    fromBefore(Math.min(5, bestLine.pv.length), "What you missed:");
   } else if (net <= -1 && loss >= 6) {
     const r = reply[0]; const amt = amountWords(-net);
     const amap = boardMap(new Chess(fenAfter));
     if (r && r.captured && r.to === move.to) {
       out.tags.push("hangs");
-      out.msg.push(attackers(amap, move.to, me).length ? `This loses ${amt} after ${r.san}.` : `Your ${NAME[move.piece]} on ${move.to} can be taken for free.`);
+      out.msg.push(attackers(amap, move.to, me).length ? `This loses ${amt}. ${opp} can take it and come out ahead.` : `Your ${NAME[move.piece]} on ${move.to} can be taken for free.`);
     } else if (r && r.captured) {
-      out.tags.push("hangs"); out.msg.push(`This leaves your ${NAME[r.captured]} on ${r.to} hanging.`);
+      out.tags.push("hangs"); out.msg.push(`This leaves your ${NAME[r.captured]} on ${r.to} unprotected.`);
     } else if (r) {
       const g2 = new Chess(fenAfter); g2.move(r.san); const m2 = boardMap(g2);
       const hit = attacksFrom(m2, r.to).filter(s => m2[s] && m2[s].color === me && (VAL[m2[s].type] >= 3 || m2[s].type === "k"));
-      if (hit.length >= 2) { out.tags.push("fork"); out.msg.push(`${r.san} attacks two of your pieces at once.`); }
+      if (hit.length >= 2) { out.tags.push("fork"); out.msg.push(`${opp}'s ${NAME[r.piece]} can attack two of your pieces at once.`); }
       else out.msg.push(`This loses ${amt}.`);
     }
     fromAfter(/for free/.test(out.msg[0]) ? 1 : Math.min(3, settleIndex(fenAfter, replyPv, 6)), "Watch:");
   } else if (bestSwing >= 1 && net < bestSwing && loss >= 6) {
     out.tags.push("missed-win");
-    out.msg.push(`${best.san} would have won ${amountWords(bestSwing)}.`);
-    fromBefore(Math.min(3, settleIndex(fenBefore, bestLine.pv, 6)), "You missed:");
+    out.msg.push(`You could have won ${amountWords(bestSwing)}: ${moveWords(best)}.`);
+    fromBefore(Math.min(3, settleIndex(fenBefore, bestLine.pv, 6)), "What you missed:");
   } else {
     const notes = principleNotes({ fenBefore, move, me, history, opening });
     out.msg.push(notes.length ? notes[0] : `This gives ${opp} the better game.`);
     fromAfter(Math.min(3, replyPv.length), "Watch:");
   }
   out.better = betterLine();
-  if (bookMove && bookMove.san !== move.san && (!best || bookMove.san !== best.san)) out.better += `. Repertoire move: ${bookMove.san}`;
-  const forcing = ["Take free material when it's safe.", "Trade a smaller piece for a bigger one when you can.", "Attack two things at once. They can't save both.", "Look at every check. Some of them are checkmate."];
+  if (bookMove && bookMove.san !== move.san && (!best || bookMove.san !== best.san)) out.better += `. Opening move here: ${sanWords(fenBefore, bookMove.san)}`;
+  const forcing = ["If nothing guards a piece, take it.", "Swap a cheap piece for an expensive one when you can.", "Attack two things at once. They can only save one.", "Look at every check first. Some are checkmate."];
   const bestRule = best ? principleFor(fenBefore, best, me) : null;
   out.rule = (trap && trapRule(fenBefore, move.san)) || ruleForMistake(out.tags, out.msg[0] || "")
-    || (out.tags.includes("missed-win") ? (forcing.includes(bestRule) ? bestRule : "Look for forcing moves first: checks, captures, and threats.") : null)
+    || (out.tags.includes("missed-win") ? (forcing.includes(bestRule) ? bestRule : "First look at checks, captures and attacks.") : null)
     || bestRule || "Before you move, ask what your opponent wants to do next.";
   if (out.show && !out.show.pv.length) out.show = null;
   return out;
@@ -532,7 +540,7 @@ function goalsFor(map, me, history, moveNum) {
       it.done = ok;
     } else if (it.id === "worst") {
       const w = worstPiece(map, me);
-      if (w) { it.done = w.mob >= 4; it.t = it.done ? "Every piece has good squares" : `Improve your worst piece: the ${NAME[w.type]} on ${w.sq}`; }
+      if (w) { it.done = w.mob >= 4; it.t = it.done ? "Every piece has good squares" : `Find a better square for your ${NAME[w.type]} on ${w.sq}`; }
       else it.done = true;
     } else if (it.id === "king") {
       const k = Object.keys(map).find(s => map[s].type === "k" && map[s].color === me);
@@ -562,5 +570,5 @@ function pressureText(pr, opp) {
     const n = k => k === 1 ? "once" : k === 2 ? "twice" : k + " times";
     return `${pr.mine ? `You attack ${pr.sq} ${n(pr.mine)}.` : `Nothing of yours attacks ${pr.sq} yet.`} ${pr.theirs ? `${opp} defends it ${n(pr.theirs)}.` : `${opp} isn't defending it.`} ${lead}`;
   }
-  return `You control ${pr.sq} ${pr.mine}x, ${opp} ${pr.theirs}x.${pr.mine <= pr.theirs ? " Add more control." : ""}`;
+  return `${pr.mine} of your pieces cover ${pr.sq}, ${pr.theirs} of ${opp}'s do.${pr.mine <= pr.theirs ? " Add more." : ""}`;
 }

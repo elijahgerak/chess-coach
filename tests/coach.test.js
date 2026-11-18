@@ -4,7 +4,7 @@ const { explainMove, bookAt } = app;
 const cases = [
   { name: "hangs a bishop", moves: "e4 c6 d4 d5 e5 e6 Nf3 c5 c3 Nc6 Be2 Qb6 O-O Bd7 Na3 cxd4 cxd4 Bd6", op: "caro", me: "b", cls: ["blunder", "mistake"], msg: /taken for free/, rule: /what can my opponent take/ },
   { name: "Karpov smothered mate", moves: "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Nd7 Qe2 Ngf6", op: "caro", me: "b", cls: ["blunder"], msg: /checkmate/ },
-  { name: "Elephant Trap", moves: "d4 d5 c4 e6 Nc3 Nf6 Bg5 Nbd7 cxd5 exd5 Nxd5", op: "qg", me: "w", cls: ["blunder", "mistake"], msg: /Elephant/ },
+  { name: "Elephant Trap", moves: "d4 d5 c4 e6 Nc3 Nf6 Bg5 Nbd7 cxd5 exd5 Nxd5", op: "qg", me: "w", cls: ["blunder", "mistake"], msg: /trap/ },
   { name: "book move", moves: "e4 c6 d4 d5 e5 Bf5", op: "caro", me: "b", cls: ["book"] },
   { name: "locked bishop", moves: "e4 c6 d4 d5 e5 e6", op: "caro", me: "b", cls: ["good", "inaccuracy", "excellent"], msg: /bishop out before/ },
 ];

@@ -1,4 +1,4 @@
-"""UI smoke test: builds, serves site/, opens it in headless Chrome, plays 1...c6, checks the next-move card appears.
+"""UI smoke test: builds, serves site/, opens it in headless Chrome, plays 1...c6, checks the coach asks for your next move with an idea.
 
 Needs: pip install playwright && playwright install chromium   (or pass CHROME=/path/to/chrome)
 Run:   python3 tests/smoke.py        Screenshots land in tests/screens/
@@ -34,7 +34,7 @@ async def main():
         await page.screenshot(path=os.path.join(OUT, "2-after-c6.png"))
         coach = await page.inner_text("#coach")
         await b.close()
-    ok = ("Move your" in coach or "Take the" in coach or "Castle" in coach) and not errors
+    ok = "Your move" in coach and "Idea:" in coach and not errors
     print("ok" if ok else "FAIL", "| engine + coach responded" if ok else f"| coach: {coach[:120]!r} errors: {errors}")
     sys.exit(0 if ok else 1)
 

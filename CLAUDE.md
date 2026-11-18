@@ -6,13 +6,14 @@ A single-page web app. You play Stockfish 19 in the browser; after each move the
 
 - **Minimal, no bloat.** Don't add features, settings or screens unless asked. When in doubt, cut. Three tabs only: Play, Practice, Review.
 - **Assume the user knows nothing.** Every screen has one obvious next action. No thinking required.
-- **The next move must be obvious.** Treat the user as a complete beginner. Every turn shows one "next move" card: what just happened, what to do in plain words ("Move your knight from g8 to f6."), and one line of why, with an arrow on the board.
+- **Make them think, don't hand them moves.** Following arrows taught nothing. The user always tries first: the card gives the *idea*, a Hint button adds more one step at a time (idea → which piece → the move), and threats are asked ("Which piece is under attack?"), not told. End of game shows "You found X of Y moves yourself."
+- **Plain words only.** Treat the user as a complete beginner. No chess jargon ("pawn chain", "develop", "open file", "minority attack", "IQP", "tempo") and no move notation in coaching text ("Nge7"). Use pieces and squares: "Attack the pawn on d4. It's holding up the pawn on e5." / "Better: knight g8 → e7." (`moveWords`, `describeMove`, `describeTheirs`).
 - **Feedback = short.** One sentence of reason, `Better: <move>`, one `Rule:` (a true, basic principle), and the moves played out on the board. No paragraphs.
 - **No Claude/AI inside the app.** All coaching comes from Stockfish + the rules in `core.js`. Don't add LLM calls.
 - **Look:** modern and clean: Geist font, rounded cards, black pill buttons, floating tab bar, subtle film grain, light/dark themes. Motion follows Emil Kowalski: fast ease-out (`--ease-out`), 150–300 ms, nothing bouncy, respect reduced motion. Also influenced by "impeccable" and "taste" design guidance: no generic AI-template looks.
 - **Logo:** a pawn lifting a barbell on a green chessboard (`brand/`). It's the home-screen icon.
 - **Rules must be accurate.** Never show a principle that isn't true for the position. Run `npm run test:book` after changing the repertoire.
-- Learning design is research-based: worked examples first, then guidance that fades as skill grows (help levels: move → piece → plan → on your own), spaced practice, try before seeing the answer, principles tied to concrete positions.
+- Learning design is research-based: generate the answer yourself before seeing it, minimum help needed (hint ladder), guidance that fades as skill grows, spaced practice, principles tied to concrete squares.
 
 ## Layout
 
@@ -42,20 +43,20 @@ npm run deploy            # publish to GitHub Pages
 
 ## How the main flows work
 
-- **Next-move card (`nextCardHTML`):** context line (their move + its idea, a threat, their blunder, or "the opening is over"), then by `S.guide.stage`: 1 = the move in words + green arrow, 2 = "Move the knight in the blue box" (piece marked), 3 = the plan step or goal with rings on the board, 4 = "Your move." A "Show me" pill reveals the full move at levels 2–4 (revealed moves don't count toward progress). Suggestion = top repertoire move if in book (why = its comment), else the punishing move after an opponent blunder, else the engine's best (why = `principleFor`/`shortIdea`/plan step). Level goes up after 40 (then 30) good moves in a row, down one after a game with 3+ mistakes; Settings has a Move/Piece/Plan/Off control.
+- **Your-move card (`nextCardHTML`):** context line in plain words ("White moved their knight to g3." + the idea of their move), then "Your move." At help level 1 (`S.guide.stage`) the **Idea** line shows automatically (top repertoire move's comment, else `whyFor` → `principleFor`/`shortIdea`/plan step); the Hint pill then adds **Piece** (blue box) and **Move** (words + green arrow). Level 2 shows nothing until Hint. A move counts as "found yourself" if it's book/best/excellent with at most the idea shown; 25 in a row moves you to level 2, a game with 3+ mistakes moves you back. After an opponent move that leaves one of your pieces hanging, a **threat question** ("Which piece?", 3 choices) comes first; the answer rings the piece. Last-move line: "✓ You found it." (plus the rule if you hadn't seen the idea), or a short card for good/inaccurate moves.
 - **Play:** on your turn `coachEngine` analyzes the position (MultiPV 3). When you move, it analyzes the new position; `explainMove` compares win% before/after (thresholds: inaccuracy ≥6, mistake ≥11, blunder ≥20 points, softened when already winning/lost). Book moves skip analysis. Mistakes/blunders pause the game, auto-replay `r.show` on the board, and offer Try again / Keep playing. The bot plays repertoire replies first (weighted), then Stockfish at the chosen level (`LEVELS`: under 1320 Elo uses depth-limited MultiPV with softmax picking; above uses `UCI_LimitStrength`). Strength moves up on a win, down on a loss.
 - **Opponent mistakes:** after the bot moves, the new eval is compared with the eval after your last move; a ≥10-point swing flags it ("Black's 12...Nc3 was a blunder. Find the move that punishes it.").
 - **Plans:** `detectStructure` picks a `PLANS` entry from the pawns. At help level 3 the card shows the next unfinished step and the attacker/defender count on the `focus` square, and the board rings that square. "See the plan" opens the full plan + goal checklist. No structure → opening/middlegame/endgame `GOALS`, with the relevant pieces ringed. (`PLANS.quiz` is unused for now.)
 - **Practice:** a session is your due repertoire lines first, then concept and mistake cards. **Line drills** (`startLine`/`lineAdvance`/`onLineMove`): the coach plays the other side, you play your moves from memory; a new line gets a guided pass (arrows + comments), then a from-memory test later in the same session; any miss sends the line back to box 1 and repeats it at the end. Max 2 new lines and 4 new concept cards a day. Leitner boxes (1, 3, 7, 16, 35 days). For cards, moves within 4% of best count as correct. The Practice home shows "X of Y opening lines learned".
-- **Threat warnings:** after the bot moves, any of your pieces that is attacked and undefended (or attacked by something cheaper) is ringed in red with "Watch out: your knight on f6 is under attack." They fade: off after 3 games in a row with no hung piece/fork/allowed mate, back on after 2 such slips in one game (`S.threat`).
-- **End of opening:** the first time a game leaves the repertoire, the turn line says "The opening is over. Now follow your plan below."
+- **Threat questions:** after the bot moves, if one of your pieces is attacked and unguarded (or attacked by something cheaper), you're asked which piece it is before you move. They fade: off after 3 games in a row with no hung piece/fork/allowed mate, back on after 2 such slips in one game (`S.threat`).
+- **End of opening:** the first time a game leaves the repertoire, the context line says "The opening is over. Think about your plan."
 - **Review:** paste PGN (chess.com comments/clocks are stripped), pick your side once (remembered as `S.username`), every position analyzed at depth 12, up to 5 key moments where you find the better move first, then the game move + refutation replays.
 - **Storage:** `localStorage` key `ckqg-coach-v1`. Inside a Claude artifact it also syncs through the artifact `db` (`window.claude.use("db")`); on Pages that's simply absent.
 
 ## Conventions
 
 - chess.js **0.10.3** from cdnjs (old snake_case API: `in_check()`, `game_over()`, `load_pgn()`, `moves({verbose:true})`).
-- Copy is plain, short, sentence case, from the player's side ("Your bishop on d6 can be taken for free."). No jargon without a few-word explanation.
+- Copy is plain, short, sentence case, from the player's side ("Your bishop on d6 can be taken for free."). No jargon, no notation. Repertoire comments in `data.js` follow the same rule (they become the Idea line).
 - Keep `core.js` free of DOM so it stays testable in Node (`tests/lib.js` loads it).
 - Adding content: a repertoire line is PGN text with `{comment}` after the move it explains and a `weight` (how often the bot picks it). Add a concept with `moves`, `prompt`, `accept`, `principle`, `why`. Then run `npm test && npm run test:book`.
 - Commits go to `main`; run `npm run deploy` to publish.
