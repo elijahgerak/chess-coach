@@ -1,11 +1,11 @@
-# Caro-Kann & QG Coach
+# Caro-Kann Coach
 
-Play Stockfish in the **Caro-Kann** (as Black) or the **Queen's Gambit** (as White). After every move the coach tells you, in one plain sentence, what went wrong, plays out the moves that show the problem, and gives you the better move with a rule of thumb behind it.
+Learn the **Caro-Kann** (as Black) like a video game, then play it against Stockfish. After every move the coach tells you, in one plain sentence, what went wrong, plays out the moves that show the problem, and gives you the better move with a rule of thumb behind it.
 
 **Live:** https://elijahgerak.github.io/chess-coach/ (open in Safari → Share → Add to Home Screen)
 
+- **Learn:** nine short levels, one idea each. Watch the moves play out, copy a see-through piece, then play them alone. Stars, spaced refreshes, and colors for each kind of White move.
 - **Play:** Stockfish 19, strength from about 600 to full, adjusting as you win and lose. Mistakes pause the game so you can try again. Your plan is drawn on the board.
-- **Practice:** your mistakes and key opening ideas come back on a spaced schedule.
 - **Review:** paste a chess.com game (Share → PGN → Copy) and find the better moves at your key moments.
 
 ## Develop

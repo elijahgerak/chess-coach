@@ -11,7 +11,7 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 
 // ================= Saved state =================
 const KEY = "ckqg-coach-v1";
-const DEFAULT = { opening: null, level: 3, pause: true, plan: { stage: 1, games: 0, streak: 0, miss: 0, manual: false }, deck: {}, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", newDay: { d: "", n: 0 }, lines: {}, newLines: { d: "", n: 0 }, threat: { on: true, clean: 0 }, guide: { stage: 1, streak: 0 } };
+const DEFAULT = { opening: "caro", level: 3, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", threat: { on: true, clean: 0 }, guide: { stage: 1, streak: 0 }, learn: {}, sound: true };
 let S = JSON.parse(JSON.stringify(DEFAULT));
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
 const Store = { ref: null, saving: false, dirty: false, t: 0 };
@@ -37,8 +37,8 @@ async function connectPlatform() {
     if (snap.exists) {
       const data = snap.data();
       S = Object.assign(JSON.parse(JSON.stringify(DEFAULT)), JSON.parse(JSON.stringify(data)));
-      seedConcepts(); seedLines(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
-      updateBadge(); if (currentView() === "practice") renderPractice();
+      S.opening = "caro"; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+      updateBadge(); if (currentView() === "learn") renderLearn();
       if (currentView() === "review") renderReview();
       setTop();
     } else { Store.dirty = true; flush(); }
@@ -138,61 +138,9 @@ async function botChoose(fen) {
   return (await botEngine.search({ fen, go: `movetime ${700 + (Math.random() * 600 | 0)}`, options: { UCI_LimitStrength: "true", UCI_Elo: L.elo, MultiPV: 1 } })).bestmove;
 }
 
-// ================= Spaced practice deck =================
+// ================= Spacing =================
 const INTERVALS = [0, 1, 3, 7, 16, 35];
 function today() { return new Date().toISOString().slice(0, 10); }
-function seedConcepts() {
-  for (const c of CONCEPTS) {
-    const id = "c:" + c.id; if (S.deck[id]) continue;
-    const g = new Chess(); c.moves.split(" ").forEach(m => g.move(m));
-    S.deck[id] = { id, kind: "concept", fen: g.fen(), accept: c.accept, prompt: c.prompt, answer: c.answer, principle: c.principle, why: c.why, title: c.title, opening: c.opening, box: 0, due: 0, isNew: true };
-  }
-}
-// Repertoire lines as drill cards (learned move by move, spaced like everything else)
-function seedLines() {
-  const all = [];
-  for (const [op, R] of Object.entries(REPERTOIRE)) R.lines.forEach((l, i) => all.push({ op, l, i }));
-  all.sort((a, b) => b.l.weight - a.l.weight || a.i - b.i);
-  all.forEach((x, n) => { const id = x.op + ":" + x.l.name; if (!S.lines[id]) S.lines[id] = { id, opening: x.op, name: x.l.name, box: 0, due: 0, isNew: true, order: n }; else S.lines[id].order = n; });
-}
-function dueLines() {
-  const now = Date.now(); const d = today();
-  if (S.newLines.d !== d) S.newLines = { d, n: 0 };
-  const L = Object.values(S.lines).filter(l => REPERTOIRE[l.opening].lines.some(x => x.name === l.name));
-  const due = L.filter(l => !l.isNew && l.due <= now);
-  const fresh = L.filter(l => l.isNew).sort((a, b) => a.order - b.order).slice(0, Math.max(0, 2 - S.newLines.n));
-  return { due, fresh, count: due.length + fresh.length, learned: L.filter(l => !l.isNew && l.box >= 1).length, total: L.length };
-}
-function addMistakeCard(fen, mv, r, pre, source, label) {
-  const id = "m:" + fenKey(fen);
-  if (S.deck[id] || !r.best) return false;
-  const top = (pre && pre.lines || []).filter(l => l.pv && l.pv[0]).map(l => ({ uci: l.pv[0], cp: toCp(l.score) }));
-  S.deck[id] = { id, kind: "mistake", fen, accept: [r.best], top, bestCp: r.bestCp, played: mv.san, label, prompt: `You played ${label} here${source === "review" ? " in a chess.com game" : ""}. Find a better move.`, answer: r.better || `Better was ${r.best}.`, why: r.msg[0] || "", box: 0, due: Date.now() + 20 * 3600000, added: Date.now() };
-  save(); updateBadge(); return true;
-}
-function dueCards() {
-  const now = Date.now(); const d = today();
-  if (S.newDay.d !== d) S.newDay = { d, n: 0 };
-  const due = Object.values(S.deck).filter(c => !c.isNew && c.due <= now);
-  const fresh = Object.values(S.deck).filter(c => c.isNew).slice(0, Math.max(0, 4 - S.newDay.n));
-  return { due, fresh, count: due.length + fresh.length };
-}
-function updateBadge() {
-  const n = dueCards().count + dueLines().count; const b = $("#badge-practice");
-  b.textContent = n; b.hidden = n === 0;
-}
-function schedule(card, ok) {
-  if (card.isNew) { card.isNew = false; S.newDay.n++; }
-  card.box = ok ? Math.min(card.box + 1, INTERVALS.length - 1) : 1;
-  card.due = Date.now() + (ok ? INTERVALS[card.box] : 1) * DAY - 3600000;
-  save(); updateBadge();
-}
-function nextDueText() {
-  const later = [...Object.values(S.deck), ...Object.values(S.lines)].filter(c => !c.isNew).map(c => c.due).filter(t => t > Date.now()).sort((a, b) => a - b)[0];
-  if (!later) return "";
-  const h = (later - Date.now()) / 3600000;
-  return h < 20 ? "Next review: later today." : h < 44 ? "Next review: tomorrow." : `Next review: in ${Math.round(h / 24)} days.`;
-}
 
 // ================= Sheet + views =================
 function openSheet(html, mount) {
@@ -219,16 +167,18 @@ let SHEET_ONCLOSE = null;
 
 function setTop() {
   const v = currentView();
-  const T = { play: ["Stockfish", levelName(S.level)], practice: ["Practice", "Your openings, ideas and mistakes"], review: ["Review", "Your chess.com games"] }[v] || ["Stockfish", levelName(S.level)];
+  const inLevel = v === "learn" && LS.view === "level" && LS.lv;
+  const T = inLevel ? [LS.lv.title, LS.refresh ? "Quick refresh" : `Level ${PATH.indexOf(LS.lv) + 1} of ${PATH.length}`] : { learn: ["Caro-Kann", "Learn the moves"], play: ["Stockfish", levelName(S.level)], review: ["Review", "Your chess.com games"] }[v] || ["Caro-Kann", "Learn the moves"];
   $("#top-title").textContent = T[0]; $("#top-sub").textContent = T[1];
-  $("#restart").hidden = v !== "play"; $("#open-settings").hidden = v !== "play";
+  $("#restart").hidden = v !== "play"; $("#open-settings").hidden = v === "review" || inLevel;
 }
-function currentView() { return (location.hash || "#play").slice(1); }
+function currentView() { return (location.hash || "#learn").slice(1); }
 function showView(v) {
-  if (!["play", "practice", "review"].includes(v)) v = "play";
+  if (!["learn", "play", "review"].includes(v)) v = "learn";
   document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.id === "view-" + v));
   document.querySelectorAll(".tab").forEach(x => { x.classList.toggle("on", x.dataset.v === v); x.setAttribute("aria-current", x.dataset.v === v ? "page" : "false"); });
-  if (v === "practice") renderPractice();
+  if (v === "learn") renderLearn();
+  if (v === "play" && !P.hist.length && !P.busy && !P.over && P.gid === 0) newGame();
   if (v === "review") renderReview();
   setTop(); window.scrollTo(0, 0);
 }
@@ -304,7 +254,7 @@ function setThinking(on) { $("#thinking").classList.toggle("on", on); }
 
 function newGame() {
   P.gid++; coachEngine.stop(); botEngine.stop(); P.replayId++; P.playing = false;
-  P.opening = S.opening || "caro"; P.you = REPERTOIRE[P.opening].you;
+  P.opening = "caro"; P.you = "b";
   Object.assign(P, { threat: null, wasInBook: true, leftBookNow: false, lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, suggest: null, revealed: false, helpStep: 0, threatQ: null, found: 0, total: 0 });
   setTop();
   renderPlayBoard(); renderCoach();
@@ -371,7 +321,6 @@ async function onUserMove(m, dragged) {
   }
   save();
   const bad = r.cls === "mistake" || r.cls === "blunder";
-  if (bad && !wasRetry) addMistakeCard(fenBefore, mv, r, pre, "play", label);
   if (bad && !P.game.game_over()) { P.busy = false; P.wait = { fenBefore, move: mv, r, pre }; renderCoach(); setTimeout(() => { if (P.wait && P.wait.r === r) replayPlay(r); }, 700); return; }
   if (!bad) P.retry = null;
   if (checkOver()) return;
@@ -526,7 +475,7 @@ function renderCoach() {
   } else if (P.over) {
     const o = P.over; const t = o.res === "won" ? "You won" : o.res === "lost" ? "You lost" : "Draw";
     const n = o.count.blunder + o.count.mistake;
-    h = `<div class="card enter"><p class="status">${t}</p><p class="say">${esc(o.why)} You found <b>${o.found} of ${o.total}</b> moves yourself.</p><p class="better">${n ? `${n} mistake${n > 1 ? "s" : ""} saved to Practice.` : "No big mistakes."}</p>
+    h = `<div class="card enter"><p class="status">${t}</p><p class="say">${esc(o.why)} You found <b>${o.found} of ${o.total}</b> moves yourself.</p><p class="better">${n ? `${n} mistake${n > 1 ? "s" : ""} this game.` : "No big mistakes."}</p>
       <div class="actions"><button class="btn primary" data-act="new">Play again</button><button class="btn soft" data-act="review">Review</button></div></div>`;
   } else if (P.wait) {
     const r = P.wait.r;
@@ -563,202 +512,208 @@ function openPlanSheet() {
 }
 
 // ================= Settings + first run =================
-function openingOptions(sel) {
-  return ["caro", "qg"].map(k => `<button class="opt ${sel === k ? "on" : ""}" data-open="${k}"><img src="${PIECES[REPERTOIRE[k].you === "b" ? "bN" : "wN"]}" alt=""><span><b>${REPERTOIRE[k].name}</b><span>${esc(REPERTOIRE[k].blurb)}</span></span></button>`).join("");
-}
-function openChooser() {
-  openSheet(`<div class="sheet-mark" aria-hidden="true">${LOGO_SVG.replace(/id="c"/, 'id="c2"').replace(/url\(#c\)/, "url(#c2)")}</div><h2>What do you want to get good at?</h2><p class="lede">Pick one. You can switch any time.</p><div class="choice">${openingOptions(null)}</div>`, sh => {
-    sh.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { S.opening = b.dataset.open; save(); closeSheet(); newGame(); });
-  });
-  SHEET_ONCLOSE = () => { if (!S.opening) { S.opening = "caro"; save(); newGame(); } };
-}
 function openSettings() {
   openSheet(`<h2>Settings</h2>
-    <section><h3>Opening</h3><div class="choice">${openingOptions(S.opening)}</div></section>
     <section><h3>Opponent strength</h3><div class="stepper"><button class="btn" data-lv="-1" aria-label="Weaker">−</button><output id="lv">${levelName(S.level)}</output><button class="btn" data-lv="1" aria-label="Stronger">+</button></div><p class="sub">Goes up when you win, down when you lose.</p></section>
-    <section><h3>Help</h3><div class="seg" role="group" aria-label="Help level">${[1, 2].map(i => `<button data-help="${i}" class="${S.guide.stage === i ? "on" : ""}">${HELP[i]}</button>`).join("")}</div><p class="sub" id="help-sub">${S.guide.stage === 1 ? "Each turn shows the idea. You find the move." : "Nothing shown. Tap Hint when you need it."}</p></section>`, sh => {
+    <section><h3>Help</h3><div class="seg" role="group" aria-label="Help level">${[1, 2].map(i => `<button data-help="${i}" class="${S.guide.stage === i ? "on" : ""}">${HELP[i]}</button>`).join("")}</div><p class="sub" id="help-sub">${S.guide.stage === 1 ? "Each turn shows the idea. You find the move." : "Nothing shown. Tap Hint when you need it."}</p></section>
+    <section><label class="switch"><span>Sounds</span><input type="checkbox" id="snd" ${S.sound ? "checked" : ""}></label></section>`, sh => {
+    sh.querySelector("#snd").onchange = e => { S.sound = e.target.checked; save(); };
     sh.querySelectorAll("[data-help]").forEach(b => b.onclick = () => { S.guide.stage = +b.dataset.help; S.guide.streak = 0; save(); sh.querySelectorAll("[data-help]").forEach(x => x.classList.toggle("on", x === b)); sh.querySelector("#help-sub").textContent = S.guide.stage === 1 ? "Each turn shows the idea. You find the move." : "Nothing shown. Tap Hint when you need it."; if (myTurnIdle()) P.helpStep = Math.max(P.helpStep, S.guide.stage === 1 ? 1 : 0); renderPlayBoard(); renderCoach(); });
-    sh.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { const ch = S.opening !== b.dataset.open; S.opening = b.dataset.open; save(); closeSheet(); if (ch) newGame(); });
     sh.querySelectorAll("[data-lv]").forEach(b => b.onclick = () => { S.level = Math.max(0, Math.min(LEVELS.length - 1, S.level + +b.dataset.lv)); sh.querySelector("#lv").textContent = levelName(S.level); setTop(); save(); });
   });
 }
 
-// ================= PRACTICE =================
-const PR = { queue: [], i: 0, card: null, state: "idle", res: null, wrongOnce: new Set(), right: 0, total: 0 };
-let prBoard;
-function startPractice() {
-  const { due, fresh } = dueCards(); const L = dueLines();
-  const lines = [...L.due.sort((a, b) => a.due - b.due).slice(0, 3), ...L.fresh].map(l => ({ kind: "line", id: l.id }));
-  const cards = [...due, ...fresh].sort(() => Math.random() - 0.5).slice(0, 8);
-  const q = [...lines, ...cards];
-  Object.assign(PR, { queue: q, i: 0, state: "ask", res: null, wrongOnce: new Set(), right: 0, total: q.length, ld: null });
-  loadCard();
+// ================= LEARN: the Caro-Kann as a game =================
+// Each level: Watch (an animated clip with one plain sentence per move), Follow (a ghost piece shows
+// where to go, you copy it), Solo (no ghost; if you pause, the piece glows, then the ghost returns).
+// Finished levels come back for a quick refresh on a spaced schedule. One "Continue" button picks what's next.
+
+// Tiny sound kit (no files): a wooden tock for moves, a chime for right, a soft thud for wrong
+const SND = {
+  ctx: null,
+  init() { if (this.ctx || !S.sound) return; try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} },
+  play(kind) {
+    if (!S.sound) return; this.init(); const c = this.ctx; if (!c) return;
+    if (c.state === "suspended") c.resume();
+    const t = c.currentTime;
+    const tone = (f, at, dur, vol, type = "sine") => {
+      const o = c.createOscillator(), g = c.createGain(); o.type = type; o.frequency.setValueAtTime(f, t + at);
+      g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(vol, t + at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
+      o.connect(g).connect(c.destination); o.start(t + at); o.stop(t + at + dur + 0.02);
+    };
+    if (kind === "move") { tone(190, 0, 0.09, 0.22, "triangle"); tone(95, 0, 0.07, 0.12, "sine"); }
+    if (kind === "good") { tone(660, 0, 0.18, 0.12); tone(990, 0.07, 0.24, 0.1); }
+    if (kind === "bad") { tone(150, 0, 0.18, 0.14, "triangle"); }
+    if (kind === "win") { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.3, 0.09)); }
+  },
+};
+document.addEventListener("pointerdown", () => SND.init(), { once: true });
+
+const LS = { view: "map", lv: null, phase: "watch", runs: [], r: 0, i: 0, g: null, moves: [], waiting: false, slips: 0, combo: 0, best: 0, tok: 0, caption: "", sub: "", chip: null, timers: [], refresh: false, done: false };
+let learnBoard;
+const lstate = id => S.learn[id] || (S.learn[id] = { stars: 0, done: false, box: 0, due: 0 });
+function levelUnlocked(i) { return i === 0 || lstate(PATH[i - 1].id).done; }
+function dueLevels() { const now = Date.now(); return PATH.filter(l => { const s = S.learn[l.id]; return s && s.done && s.due && s.due <= now; }); }
+function updateBadge() { const n = dueLevels().length; const b = $("#badge-learn"); if (b) { b.textContent = n; b.hidden = n === 0; } }
+function nextUp() {
+  const due = dueLevels().sort((a, b) => S.learn[a.id].due - S.learn[b.id].due)[0];
+  if (due) return { lv: due, refresh: true };
+  const i = PATH.findIndex((l, k) => levelUnlocked(k) && !lstate(l.id).done);
+  if (i >= 0) return { lv: PATH[i], refresh: false };
+  return { lv: PATH[PATH.length - 1], refresh: true };
 }
-function loadCard() {
-  PR.card = PR.queue[PR.i]; PR.res = null; PR.hint = false; PR.ld = null;
-  if (!PR.card) { PR.state = "done"; renderPractice(); return; }
-  if (PR.card.kind === "line") { startLine(PR.card); return; }
-  PR.state = "ask"; renderPractice();
+function commentFor(fen, san) { const b = bookAt("caro", fen).find(x => x.san === san); return b && b.c ? shortComment(b.c) : ""; }
+function buildRuns(lv) {
+  if (!lv.mix) return lv.runs.map(r => ({ start: r.start ? r.start.split(" ") : [], moves: r.moves.split(" ") }));
+  // Boss: three random lines from the start, first 10 moves each
+  const lines = REPERTOIRE.caro.lines.slice(); const pick = [];
+  while (pick.length < 3 && lines.length) { const tot = lines.reduce((s, l) => s + l.weight, 0); let x = Math.random() * tot; const k = lines.findIndex(l => (x -= l.weight) <= 0); pick.push(lines.splice(k < 0 ? 0 : k, 1)[0]); }
+  return pick.map(l => ({ start: [], moves: parsePgnText(l.pgn).map(m => m.san).slice(0, 10) }));
 }
-// ---- Line drill: you play your moves, the coach plays the other side
-function startLine(item) {
-  const card = S.lines[item.id]; const R = REPERTOIRE[card.opening];
-  const line = R.lines.find(l => l.name === card.name);
-  PR.ld = { id: item.id, card, op: card.opening, name: card.name, moves: parsePgnText(line.pgn), i: 0, g: new Chess(), me: R.you, misses: 0, fix: null, learn: card.isNew && !item.test, test: !!item.test, flash: "", token: (PR.ldToken = (PR.ldToken || 0) + 1) };
-  PR.state = "line"; renderPractice();
-  setTimeout(lineAdvance, 500);
+function clearTimers() { LS.timers.forEach(clearTimeout); LS.timers = []; }
+function later(fn, ms) { const tok = LS.tok; LS.timers.push(setTimeout(() => { if (LS.tok === tok) fn(); }, ms)); }
+
+function startLevel(lv, refresh) {
+  clearTimers(); LS.tok++;
+  Object.assign(LS, { view: "level", lv, refresh, phase: refresh || lv.mix ? "solo" : "watch", runs: buildRuns(lv), r: 0, slips: 0, combo: 0, best: 0, done: false, chip: null });
+  renderLearn(); startRun();
 }
-async function lineAdvance() {
-  const ld = PR.ld; if (!ld) return; const tok = ld.token;
-  while (ld.i < ld.moves.length && ld.g.turn() !== ld.me) {
-    const fen = ld.g.fen(); const m = ld.g.move(ld.moves[ld.i].san); ld.i++;
-    ld.last = { from: m.from, to: m.to }; ld.theirs = { label: describeTheirs(m, COLOR[other(ld.me)]), c: ld.moves[ld.i - 1].c };
-    renderPractice({ from: m.from, to: m.to });
-    await sleep(650);
-    if (!PR.ld || PR.ld.token !== tok) return;
-  }
-  if (ld.i >= ld.moves.length) { lineDone(); return; }
-  ld.waiting = true; renderPractice();
+function startRun() {
+  clearTimers(); LS.tok++;
+  const run = LS.runs[LS.r]; const g = new Chess(); run.start.forEach(m => g.move(m));
+  Object.assign(LS, { g, i: 0, waiting: false, caption: LS.phase === "watch" ? "Watch." : LS.phase === "follow" ? "Copy the see-through piece." : "Your turn. No help this time.", sub: "", chip: null, last: null });
+  learnBoard.clearGhost();
+  learnBoard.set({ fen: g.fen(), orientation: "b", last: null });
+  renderLearnPanel();
+  later(stepRun, LS.phase === "watch" ? 700 : 600);
 }
-function onLineMove(m) {
-  const ld = PR.ld; if (!ld || !ld.waiting) return;
-  const want = ld.moves[ld.i]; const fen = ld.g.fen();
-  const mv = ld.g.move(m); if (!mv) return;
-  if (mv.san.replace(/[+#]/g, "") === want.san.replace(/[+#]/g, "")) {
-    ld.i++; ld.waiting = false; ld.last = { from: mv.from, to: mv.to };
-    ld.flash = ld.fix || ld.learn ? "" : "Right."; ld.fix = null;
-    renderPractice({ from: mv.from, to: mv.to });
-    setTimeout(lineAdvance, 350);
-  } else {
-    ld.g.undo();
-    if (!ld.fix && !ld.learn) ld.misses++;
-    ld.fix = { label: describeMove(new Chess(fen).move(want.san)), c: want.c, tried: moveWords(mv) };
-    ld.flash = ""; renderPractice();
-  }
-}
-function lineDone() {
-  const ld = PR.ld; const card = ld.card; ld.waiting = false; ld.done = true;
-  if (ld.learn) {
-    card.isNew = false; card.box = 0; card.due = Date.now(); S.newLines.n++;
-    PR.queue.push({ kind: "line", id: ld.id, test: true });
-  } else if (!PR.wrongOnce.has(ld.id)) {
-    const ok = ld.misses === 0;
-    card.box = ok ? Math.min(card.box + 1, INTERVALS.length - 1) : 1;
-    card.due = Date.now() + INTERVALS[card.box] * DAY - 3600000;
-    if (ok) PR.right++; else { PR.wrongOnce.add(ld.id); PR.queue.push({ kind: "line", id: ld.id, test: true }); }
-  }
-  save(); updateBadge(); renderPractice();
-}
-function renderLine(v, anim) {
-  const ld = PR.ld;
-  if (!v.querySelector(".live")) {
-    v.innerHTML = `<div class="live"><div class="main"><div class="bar"><div class="who"><b id="pr-count"></b><span id="pr-side"></span></div><button class="icon-btn" id="pr-quit" aria-label="End session">${ICONS.close}</button></div><div id="pr-board"></div></div><div class="side"><div class="coach" id="pr-coach" aria-live="polite"></div></div></div>`;
-    prBoard = new Board(v.querySelector("#pr-board"), { interactive: () => (PR.state === "ask") || (PR.state === "line" && PR.ld && PR.ld.waiting), onMove: m => PR.state === "line" ? onLineMove(m) : onPracticeMove(m) });
-    v.querySelector("#pr-quit").onclick = () => { PR.state = "idle"; PR.ld = null; renderPractice(); };
-  }
-  v.querySelector("#pr-count").textContent = `${Math.min(PR.i + 1, PR.queue.length)} of ${PR.queue.length}`;
-  v.querySelector("#pr-side").textContent = `${REPERTOIRE[ld.op].name}: ${ld.name}`;
-  const want = ld.waiting ? ld.moves[ld.i] : null; const arrows = [];
-  if (want && (ld.learn || ld.fix)) { const g2 = new Chess(ld.g.fen()); const w = g2.move(want.san); if (w) arrows.push({ from: w.from, to: w.to, kind: ld.fix ? "" : "plan" }); }
-  prBoard.set({ fen: ld.g.fen(), orientation: ld.me, last: ld.last, check: kingSq(ld.g), arrows, animate: anim });
-  const opp = COLOR[other(ld.me)];
-  let h = "";
-  if (ld.done) {
-    const perfect = !ld.learn && ld.misses === 0;
-    h += `<div class="card enter"><p class="status">${ld.learn ? "Line learned" : perfect ? "Perfect" : "Line done"}</p><p class="say">${ld.learn ? "Now try it from memory. It's coming up again at the end of this session." : perfect ? "You remembered every move. See you in a few days." : `${ld.misses} miss${ld.misses > 1 ? "es" : ""}. You'll play this line again at the end.`}</p>
-      <div class="actions"><button class="btn primary" data-pr="next">Next</button></div></div>`;
-  } else {
-    const head = ld.learn ? "New line. Play the arrow moves and read why." : ld.test && ld.card.box === 0 ? "From memory now. No arrows." : "Play your moves from memory.";
-    h += `<div class="turn"><p>${ld.waiting ? "Your move." : `${opp} is moving…`}<span>${head}</span></p></div>`;
-    if (ld.flash) h += `<p class="say enter tone-good"><b>${ld.flash}</b></p>`;
-    if (ld.fix) h += `<div class="card enter"><div class="verdict"><span class="nag tone-bad" aria-hidden="true">?</span><h2 class="tone-bad">Not this line's move</h2><span class="mv">You tried ${esc(ld.fix.tried)}</span></div><p class="say"><b>${esc(ld.fix.label)}</b>${ld.fix.c ? " " + esc(ld.fix.c) : ""}</p></div>`;
-    else if (want && ld.learn) h += `<div class="card enter"><p class="say"><b>${esc(describeMove(new Chess(ld.g.fen()).move(want.san)))}</b>${want.c ? " " + esc(want.c) : ""}</p></div>`;
-    else if (ld.theirs && ld.theirs.c && ld.learn) h += `<p class="better">${esc(ld.theirs.label)} ${esc(ld.theirs.c)}</p>`;
-  }
-  const co = v.querySelector("#pr-coach"); co.innerHTML = h;
-  co.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => { if (b.dataset.pr === "next") { PR.i++; loadCard(); } });
-}
-async function onPracticeMove(m) {
-  if (PR.state !== "ask") return;
-  const c = PR.card; const g = new Chess(c.fen); const mv = g.move(m); if (!mv) return;
-  PR.state = "grading"; PR.last = { from: mv.from, to: mv.to };
-  renderPractice({ from: mv.from, to: mv.to }, g.fen());
-  let ok = c.accept.includes(mv.san), note = "";
-  if (!ok && c.top && c.top.some(t => t.uci === moveUci(mv) && t.cp >= c.bestCp - 40)) ok = true;
-  if (!ok) {
-    try {
-      const me = new Chess(c.fen).turn();
-      const best = c.bestCp != null ? c.bestCp : toCp((await analyze(c.fen, "depth 13 movetime 700", 1)).lines[0].score);
-      const a = await analyze(g.fen(), "depth 13 movetime 700", 1);
-      const loss = winPct(best) - winPct(-toCp(a.lines[0].score));
-      if (loss < 4) { ok = true; note = c.kind === "concept" ? "That works too. The idea here, though, is:" : "That works too."; }
-    } catch (e) { }
-  }
-  PR.res = { ok, san: moveWords(mv), note }; PR.afterFen = g.fen();
-  gradeCard(c, ok);
-  PR.state = "answered"; renderPractice();
-}
-function gradeCard(c, ok) {
-  const first = !PR.wrongOnce.has(c.id);
-  if (!first) return;
-  if (ok) PR.right++; else { PR.wrongOnce.add(c.id); PR.queue.push(c); }
-  schedule(S.deck[c.id] || c, ok);
-}
-function renderPractice(anim, fenOverride) {
-  const v = $("#view-practice");
-  if (PR.state === "line" && PR.ld) { renderLine(v, anim); return; }
-  if (PR.state === "idle" || PR.state === "done") {
-    const L = dueLines(); const count = dueCards().count + L.count;
-    const done = PR.state === "done";
-    v.innerHTML = `<div class="hero"><span class="big">${done ? (PR.total ? `${PR.right}/${PR.total}` : "0") : count}</span>
-      <h2 class="status">${done ? "Session done" : count ? "to practice today" : "All caught up"}</h2>
-      <p>${done ? `${nextDueText() || "Come back tomorrow."} Short sessions every day beat long ones once a week.` : count ? "Your opening lines first, then ideas and mistakes from your games." : `${nextDueText() || ""} Play a game. Your mistakes become new practice.`}</p>
-      <div class="meter" aria-label="Opening lines learned"><i style="width:${Math.round(L.learned / Math.max(1, L.total) * 100)}%"></i></div>
-      <p class="sub">${L.learned} of ${L.total} opening lines learned</p></div>
-      <div class="actions">${count && !done ? `<button class="btn primary wide" id="pr-start">Start practice</button>` : done && count ? `<button class="btn primary wide" id="pr-start">Keep going (${count} left)</button>` : `<button class="btn primary wide" id="pr-play">Play a game</button>`}</div>`;
-    const st = v.querySelector("#pr-start"); if (st) st.onclick = startPractice;
-    const pl = v.querySelector("#pr-play"); if (pl) pl.onclick = () => { location.hash = "#play"; };
+function sansSoFar() { return [...LS.runs[LS.r].start, ...LS.runs[LS.r].moves.slice(0, LS.i)]; }
+function stepRun() {
+  const run = LS.runs[LS.r];
+  if (LS.i >= run.moves.length) { runDone(); return; }
+  const san = run.moves[LS.i]; const fen = LS.g.fen();
+  const mine = LS.g.turn() === "b";
+  const c = commentFor(fen, san);
+  if (!mine || LS.phase === "watch") {
+    const m = LS.g.move(san); LS.i++;
+    LS.last = { from: m.from, to: m.to };
+    learnBoard.set({ fen: LS.g.fen(), orientation: "b", last: LS.last, check: kingSq(LS.g), animate: { from: m.from, to: m.to } });
+    SND.play("move");
+    if (!mine) { const fam = familyOf(sansSoFar()); if (fam !== "start" && (!LS.chip || LS.chip.fam !== fam)) LS.chip = { fam, fresh: true }; }
+    LS.caption = mine ? describeMove(m) : describeTheirs(m, "White");
+    LS.sub = c;
+    renderLearnPanel(true);
+    later(stepRun, LS.phase === "watch" ? (mine ? 2300 : 1900) : 650);
     return;
   }
-  const c = PR.card; const turn = c.fen.split(" ")[1];
-  if (v.querySelector(".live") && !prBoard) v.innerHTML = "";
-  if (!v.querySelector(".live")) {
-    v.innerHTML = `<div class="live"><div class="main"><div class="bar"><div class="who"><b id="pr-count"></b><span id="pr-side"></span></div><button class="icon-btn" id="pr-quit" aria-label="End session">${ICONS.close}</button></div><div id="pr-board"></div></div><div class="side"><div class="coach" id="pr-coach" aria-live="polite"></div></div></div>`;
-    prBoard = new Board(v.querySelector("#pr-board"), { interactive: () => (PR.state === "ask") || (PR.state === "line" && PR.ld && PR.ld.waiting), onMove: m => PR.state === "line" ? onLineMove(m) : onPracticeMove(m) });
-    v.querySelector("#pr-quit").onclick = () => { PR.state = "idle"; renderPractice(); };
-  }
-  v.querySelector("#pr-count").textContent = `${Math.min(PR.i + 1, PR.queue.length)} of ${PR.queue.length}`;
-  v.querySelector("#pr-side").textContent = `${turn === "w" ? "White" : "Black"} to move`;
-  const arrows = []; let fen = c.fen, last = null;
-  if (PR.state === "grading") { fen = fenOverride; last = PR.last; }
-  if (PR.state === "answered") {
-    if (PR.res.ok) { fen = PR.afterFen; last = PR.last; }
-    else { const g = new Chess(c.fen); const b = g.move(c.accept[0]); if (b) arrows.push({ from: b.from, to: b.to }); }
-  }
-  prBoard.set({ fen, orientation: turn, last, arrows, animate: anim });
-  const co = v.querySelector("#pr-coach");
-  let h = "";
-  if (c.kind === "concept") h += `<p class="sub">${esc(REPERTOIRE[c.opening].name)}: ${esc(c.title)}</p>`;
-  h += `<p class="prompt">${esc(c.prompt)}</p>`;
-  if (PR.state === "ask") {
-    h += PR.hint ? `<p class="say enter">${esc(c.kind === "concept" ? c.principle : c.why || "Check every capture and every check first.")}</p>` : "";
-    h += `<div class="actions">${PR.hint ? "" : `<button class="btn soft" data-pr="hint">Hint</button>`}<button class="btn soft" data-pr="skip">Show answer</button></div>`;
-  } else if (PR.state === "grading") h += `<p class="status">Checking…</p>`;
+  // Your move (follow or solo)
+  const m = new Chess(fen).move(san);
+  LS.want = m; LS.wantC = c; LS.waiting = true; LS.helped = false;
+  if (LS.phase === "follow") { learnBoard.ghost(m.from, m.to, "b" + m.piece.toUpperCase()); LS.caption = describeMove(m); LS.sub = c; }
   else {
-    const ok = PR.res.ok;
-    h += `<div class="verdict enter">${ok ? `<span class="nag tone-good" aria-hidden="true">!</span>` : `<span class="nag tone-bad" aria-hidden="true">?</span>`}<div><h2 class="tone-${ok ? "good" : "bad"}">${ok ? "Correct" : PR.res.san ? "Not quite" : "Here's the answer"}</h2>${PR.res.san ? `<span class="mv">You played ${esc(PR.res.san)}</span>` : ""}</div></div>`;
-    if (PR.res.note) h += `<p class="say">${esc(PR.res.note)}</p>`;
-    h += `<p class="say enter">${bold(c.answer)}</p>`;
-    if (c.kind === "concept") h += `<p class="say enter">${esc(c.why)}</p>`; else if (c.why && !ok) h += `<p class="say enter">${bold(c.why)}</p>`;
-    if (!ok && PR.wrongOnce.has(c.id)) h += `<p class="sub">You'll get this one again at the end.</p>`;
-    h += `<div class="actions"><button class="btn primary" data-pr="next">Next</button></div>`;
+    LS.caption = "Your move."; LS.sub = "";
+    later(() => { if (LS.waiting) { learnBoard.glow(m.from); LS.sub = "Try the glowing piece."; renderLearnPanel(); } }, 4500);
+    later(() => { if (LS.waiting) { LS.helped = true; learnBoard.ghost(m.from, m.to, "b" + m.piece.toUpperCase()); LS.caption = describeMove(m); LS.sub = c; renderLearnPanel(); } }, 9000);
   }
-  co.innerHTML = h;
-  co.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => {
-    const a = b.dataset.pr;
-    if (a === "hint") { PR.hint = true; renderPractice(); }
-    if (a === "skip") { PR.res = { ok: false, san: null }; gradeCard(c, false); PR.state = "answered"; renderPractice(); }
-    if (a === "next") { PR.i++; loadCard(); }
+  renderLearnPanel(true);
+}
+function onLearnMove(mv) {
+  if (!LS.waiting) return;
+  const want = LS.want; const g = LS.g;
+  if (mv.from === want.from && mv.to === want.to) {
+    clearTimers(); LS.tok++;
+    const m = g.move(want.san); LS.i++; LS.waiting = false;
+    if (LS.helped && LS.phase === "solo") LS.slips++;
+    LS.combo = LS.helped ? 0 : LS.combo + 1; LS.best = Math.max(LS.best, LS.combo);
+    learnBoard.clearGhost();
+    LS.last = { from: m.from, to: m.to };
+    learnBoard.set({ fen: g.fen(), orientation: "b", last: LS.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
+    learnBoard.pop(m.to); SND.play("good");
+    LS.caption = "Yes!"; LS.sub = LS.wantC;
+    renderLearnPanel(true);
+    later(stepRun, 1200);
+  } else {
+    LS.combo = 0; LS.helped = true;
+    learnBoard.set({ fen: g.fen(), orientation: "b", last: LS.last });
+    learnBoard.shake(mv.from); SND.play("bad");
+    learnBoard.ghost(want.from, want.to, "b" + want.piece.toUpperCase());
+    LS.caption = "Not that one. Follow the see-through piece."; LS.sub = describeMove(want);
+    renderLearnPanel(true);
+  }
+}
+function runDone() {
+  LS.waiting = false; learnBoard.clearGhost();
+  if (LS.r + 1 < LS.runs.length) { LS.r++; LS.caption = "Next one…"; LS.sub = ""; renderLearnPanel(true); later(startRun, 900); return; }
+  // Whole set done for this phase
+  if (LS.phase === "watch") { LS.caption = "That's the whole idea."; LS.sub = "Now you play it, with a see-through piece to copy."; LS.between = true; renderLearnPanel(true); return; }
+  if (LS.phase === "follow") { LS.caption = "Nice copying."; LS.sub = "Now from memory. If you pause, I'll help."; LS.between = true; renderLearnPanel(true); return; }
+  levelDone();
+}
+function nextPhase(ph) { LS.between = false; LS.phase = ph; LS.r = 0; LS.slips = 0; startRun(); }
+function levelDone() {
+  const st = lstate(LS.lv.id);
+  const stars = LS.slips === 0 ? 3 : LS.slips <= 2 ? 2 : 1;
+  const firstTime = !st.done;
+  st.stars = Math.max(st.stars, stars); st.done = true;
+  st.box = stars === 3 ? Math.min((firstTime ? 0 : st.box) + 1, INTERVALS.length - 1) : 1;
+  st.due = Date.now() + INTERVALS[st.box] * DAY - 3600000;
+  save(); updateBadge();
+  LS.done = true; LS.stars = stars; LS.caption = stars === 3 ? "Perfect!" : "Level done!";
+  LS.sub = stars === 3 ? "Every move from memory." : `You needed help ${LS.slips === 1 ? "once" : LS.slips + " times"}. It comes back tomorrow so it sticks.`;
+  SND.play("win"); renderLearnPanel(true);
+}
+function quitLevel() { clearTimers(); LS.tok++; LS.view = "map"; LS.between = false; learnBoard && learnBoard.clearGhost(); renderLearn(); }
+
+function starsHTML(n) { return `<span class="stars" aria-label="${n} of 3 stars">${[1, 2, 3].map(k => `<i class="${k <= n ? "on" : ""}"></i>`).join("")}</span>`; }
+function renderLearn() {
+  const v = $("#view-learn"); if (!v) return;
+  setTop();
+  if (LS.view === "map") {
+    const up = nextUp(); const doneN = PATH.filter(l => lstate(l.id).done).length;
+    v.innerHTML = `${doneN === 0 ? `<p class="intro">When White starts with the pawn to e4, you answer with the Caro-Kann. Nine short levels: watch the moves, copy them, then play them yourself.</p>` : ""}
+      <button class="btn primary wide go" id="learn-go">${up.refresh ? "Refresh" : doneN ? "Continue" : "Start"}: ${esc(up.lv.title)}</button>
+      <ol class="path">${PATH.map((l, k) => { const s = lstate(l.id); const open = levelUnlocked(k); const due = s.done && s.due <= Date.now(); const fam = FAMILIES[l.family];
+        return `<li><button class="node ${s.done ? "done" : ""} ${open ? "" : "locked"} ${due ? "due" : ""}" data-lv="${k}" ${open ? "" : "disabled"} style="--fam:${fam.color}">
+          <span class="dot" aria-hidden="true">${s.done ? "" : open ? k + 1 : ""}</span>
+          <span class="txt"><b>${esc(l.title)}</b><span>${esc(l.sub)}</span></span>
+          ${s.done ? (due ? `<span class="tag">Refresh</span>` : starsHTML(s.stars)) : open ? "" : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Locked"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`}
+        </button></li>`; }).join("")}</ol>`;
+    v.querySelector("#learn-go").onclick = () => startLevel(up.lv, up.refresh);
+    v.querySelectorAll("[data-lv]").forEach(b => b.onclick = () => { const l = PATH[+b.dataset.lv]; const s = lstate(l.id); startLevel(l, s.done && s.due <= Date.now()); });
+    learnBoard = null;
+    return;
+  }
+  v.innerHTML = `<div class="live"><div class="main"><div class="bar"><div class="phases" id="phases"></div><button class="icon-btn" id="learn-quit" aria-label="Back to levels">${ICONS.close}</button></div><div id="learn-board"></div></div><div class="side"><div class="coach" id="learn-panel" aria-live="polite"></div></div></div>`;
+  learnBoard = new Board(v.querySelector("#learn-board"), { interactive: () => LS.waiting, onMove: m => onLearnMove(m) });
+  learnBoard.set({ fen: (LS.g || new Chess()).fen(), orientation: "b" });
+  v.querySelector("#learn-quit").onclick = quitLevel;
+}
+function renderLearnPanel(anim) {
+  const p = $("#learn-panel"); if (!p) return;
+  const ph = $("#phases");
+  if (ph) { const steps = LS.refresh || LS.lv.mix ? ["solo"] : ["watch", "follow", "solo"]; const names = { watch: "Watch", follow: "Copy", solo: "Solo" };
+    ph.innerHTML = steps.map(s => `<span class="${s === LS.phase ? "on" : steps.indexOf(s) < steps.indexOf(LS.phase) ? "past" : ""}">${names[s]}</span>`).join(""); }
+  let h = "";
+  if (LS.chip) { const f = FAMILIES[LS.chip.fam]; h += `<p class="chip ${LS.chip.fresh ? "enter" : ""}" style="--fam:${f.color}">${esc(f.name)}</p>`; LS.chip.fresh = false; }
+  h += `<p class="cap ${anim ? "enter" : ""}">${esc(LS.caption)}</p>`;
+  if (LS.sub) h += `<p class="capsub ${anim ? "enter" : ""}">${esc(LS.sub)}</p>`;
+  if (LS.done) {
+    h += `<div class="won enter">${starsHTML(LS.stars)}</div><div class="actions"><button class="btn primary" data-l="next">Next</button><button class="btn soft" data-l="again">Play again</button></div>`;
+  } else if (LS.between) {
+    h += `<div class="actions">${LS.phase === "watch" ? `<button class="btn soft" data-l="rewatch">Watch again</button><button class="btn primary" data-l="follow">My turn</button>` : `<button class="btn primary" data-l="solo">Go</button>`}</div>`;
+  } else if (LS.phase === "watch") {
+    h += `<div class="actions"><button class="link" data-l="skip">Skip the clip</button></div>`;
+  }
+  if (LS.phase !== "watch" && LS.combo >= 2 && !LS.done) h += `<p class="combo">${LS.combo} in a row</p>`;
+  p.innerHTML = h;
+  p.querySelectorAll("[data-l]").forEach(b => b.onclick = () => {
+    const a = b.dataset.l;
+    if (a === "follow") nextPhase("follow");
+    if (a === "solo") nextPhase("solo");
+    if (a === "rewatch") nextPhase("watch");
+    if (a === "skip") { clearTimers(); LS.tok++; LS.between = true; LS.caption = "That's the whole idea."; LS.sub = "Now you play it, with a see-through piece to copy."; renderLearnPanel(true); }
+    if (a === "again") startLevel(LS.lv, false);
+    if (a === "next") { const up = nextUp(); startLevel(up.lv, up.refresh); }
   });
 }
 
@@ -796,7 +751,6 @@ function guessSide(h) {
 function openingOf(moves, you) {
   const s = moves.slice(0, 3).map(m => m.san);
   if (you === "b" && s[0] === "e4" && s[1] === "c6") return "caro";
-  if (you === "w" && s[0] === "d4" && s[1] === "d5" && s[2] === "c4") return "qg";
   return null;
 }
 async function startReview(parsed, side) {
@@ -819,7 +773,6 @@ async function startReview(parsed, side) {
     RV.R[i] = explainMove({ fenBefore: fens[i], move: moves[i], me, before: RV.A[i], after: RV.A[i + 1], opening: me === side ? RV.opening : null, history: moves.slice(0, i), book: me === side && RV.opening ? bookAt(RV.opening, fens[i]) : [] });
     if (me === side && ["mistake", "blunder"].includes(RV.R[i].cls)) {
       RV.key.push(i);
-      if (addMistakeCard(fens[i], moves[i], RV.R[i], RV.A[i], "review", moveWords(moves[i]))) added++;
     }
   }
   RV.key = RV.key.sort((a, b) => RV.R[b].loss - RV.R[a].loss).slice(0, 5).sort((a, b) => a - b);
@@ -837,7 +790,7 @@ function reviewSummary() {
     for (const x of mine) { const b = bookAt(RV.opening, RV.fens[x.i]); if (!b.length) break; if (!b.some(bb => bb.san === RV.moves[x.i].san)) { left = { x, b }; break; } }
     const name = REPERTOIRE[RV.opening].name;
     open = left ? `You left the ${name} moves with ${moveWords(RV.moves[left.x.i])}. The ${name} move there is ${sanWords(RV.fens[left.x.i], left.b.sort((a, c) => c.weight - a.weight)[0].san)}.` : `You played the ${name} moves all the way through the opening.`;
-  } else open = "This game wasn't a Caro-Kann or Queen's Gambit, so there's no repertoire check.";
+  } else open = "This game wasn't a Caro-Kann, so there's no repertoire check.";
   return `<p class="say">You played ${RV.you === "w" ? "White" : "Black"}${RV.headers[RV.you === "w" ? "Black" : "White"] ? " against " + esc(RV.headers[RV.you === "w" ? "Black" : "White"]) : ""}. ${parts.length ? "You made " + parts.join(", ") + "." : "No big mistakes."}</p><p class="say">${bold(open)}</p>`;
 }
 function graphSVG() {
@@ -903,7 +856,6 @@ function renderReview(anim) {
     }
   } else {
     if (!RV.key.length && RV.kState === "browse" && !RV.browsed) h += reviewSummary();
-    if (RV.added) h += `<p class="sub">${RV.added} position${RV.added > 1 ? "s" : ""} added to Practice.</p>`;
     const last = i > 0 ? RV.moves[i - 1] : null;
     const arrows = [];
     let pun = null;
@@ -950,7 +902,6 @@ async function onReviewMove(m) {
   let ok = moveUci(mv) === RV.R[ki].bestUci;
   if (!ok) { try { const a = await analyze(g.fen(), "depth 13 movetime 700", 1); ok = winPct(RV.R[ki].bestCp) - winPct(-toCp(a.lines[0].score)) < 4; } catch (e) { } }
   RV.kRes = { ok, san: mv.san }; RV.kState = "shown"; setTimeout(replayReview, 900);
-  const card = S.deck["m:" + fenKey(fen)]; if (card && ok) { card.box = 1; card.due = Date.now() + 3 * DAY; save(); updateBadge(); }
   renderReview();
 }
 
@@ -985,9 +936,8 @@ function wire() {
   window.addEventListener("hashchange", () => showView(currentView()));
 }
 function boot() {
-  seedConcepts(); seedLines(); save();
+  S.opening = "caro"; ["deck", "lines", "newLines", "newDay", "plan", "pause"].forEach(k => delete S[k]); save();
   wire(); updateBadge(); showView(currentView());
-  if (!S.opening) { P.opening = "caro"; P.you = "b"; renderPlayBoard(); renderCoach(); openChooser(); }
-  else newGame();
+  renderPlayBoard(); renderCoach();
   connectPlatform();
 }

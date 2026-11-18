@@ -57,7 +57,7 @@ def main():
     shutil.copy(os.path.join(BRAND, "sq-192.png"), os.path.join(SITE, "icon-192.png"))
     shutil.copy(os.path.join(BRAND, "sq-512.png"), os.path.join(SITE, "icon-512.png"))
     with open(os.path.join(SITE, "manifest.webmanifest"), "w") as f:
-        json.dump({"name": "Caro-Kann & QG Coach", "short_name": "Chess Coach", "start_url": "./", "display": "standalone",
+        json.dump({"name": "Caro-Kann Coach", "short_name": "Chess Coach", "start_url": "./", "display": "standalone",
                    "background_color": "#f3f4f1", "theme_color": "#f3f4f1",
                    "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
                              {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]}, f, indent=1)

@@ -464,11 +464,6 @@ function detectStructure(map, me) {
     if (W.has("d4") && !fileHas(W, "c") && !fileHas(W, "e") && !fileHas(B, "d")) return "iqp-against";
     if (B.has("d5") && !fileHas(B, "c") && W.has("d4") && W.has("c3") && !fileHas(W, "e")) return "ck-exchange";
     if (W.has("d4") && !fileHas(W, "e") && B.has("e6") && (B.has("c6") || B.has("c5")) && !fileHas(B, "d")) return "ck-classical";
-  } else {
-    if (W.has("d4") && !fileHas(W, "c") && !fileHas(W, "e") && !fileHas(B, "d") && !fileHas(B, "c")) return "iqp-for";
-    if (W.has("d4") && !fileHas(W, "c") && B.has("c6") && B.has("d5") && !fileHas(B, "e")) return "carlsbad";
-    if (W.has("d4") && W.has("e4") && B.has("c6") && B.has("e6") && !fileHas(B, "d")) return "big-center";
-    if (W.has("c4") && W.has("d4") && B.has("d5") && B.has("e6")) return "qgd";
   }
   return null;
 }

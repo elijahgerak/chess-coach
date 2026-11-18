@@ -42,15 +42,7 @@ class Board {
         const img = document.createElement("img");
         img.src = PIECES[p.color + p.type.toUpperCase()]; img.alt = ""; img.draggable = false;
         d.appendChild(img);
-        if (anim && anim.to === sq) {
-          const [ff, fr] = sqFR(anim.from), [tf, tr] = sqFR(anim.to);
-          const dir = this.orientation === "w" ? 1 : -1;
-          const dx = (ff - tf) * 100 * dir, dy = (tr - fr) * 100 * dir;
-          img.style.transform = `translate(${dx}%, ${dy}%)`;
-          img.style.zIndex = 3;
-          requestAnimationFrame(() => requestAnimationFrame(() => { img.classList.add("moving"); img.style.transform = ""; }));
-          setTimeout(() => { img.classList.remove("moving"); img.style.zIndex = ""; }, 260);
-        }
+        if (anim && anim.to === sq) this._glide(img, anim.from, anim.to);
       }
       const showFile = this.orientation === "w" ? r === 1 : r === 8;
       const showRank = this.orientation === "w" ? f === 0 : f === 7;
@@ -58,6 +50,62 @@ class Board {
       if (showRank) { const s = document.createElement("span"); s.className = "cr"; s.textContent = sq[1]; d.appendChild(s); }
     }
     this._drawArrows();
+    if (this._ghost && this._ghostTo) { const t = this.grid.querySelector(`[data-sq="${this._ghostTo}"]`); if (t) t.classList.add("target"); }
+  }
+  // ---- Motion: pieces lift and glide, ghosts show where to go, good moves pop, wrong ones shake
+  _reduced() { return window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches; }
+  _offset(from, to) {
+    const [ff, fr] = sqFR(from), [tf, tr] = sqFR(to); const dir = this.orientation === "w" ? 1 : -1;
+    return [(ff - tf) * 100 * dir, (tr - fr) * 100 * dir];
+  }
+  _glide(img, from, to) {
+    if (this._reduced() || !img.animate) return;
+    const [dx, dy] = this._offset(from, to);
+    img.style.zIndex = 5;
+    const a = img.animate([
+      { transform: `translate(${dx}%, ${dy}%) scale(1)`, filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
+      { transform: `translate(${dx * 0.45}%, ${dy * 0.45}%) scale(1.12)`, filter: "drop-shadow(0 10px 8px rgba(0,0,0,.28))", offset: 0.5 },
+      { transform: "translate(0, 0) scale(1)", filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
+    ], { duration: 360, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+    a.onfinish = () => { img.style.zIndex = ""; };
+  }
+  _cellBox(sq) {
+    const i = [...Array(64).keys()].find(k => this.sqAt(k) === sq);
+    return { left: (i % 8) * 12.5, top: Math.floor(i / 8) * 12.5 };
+  }
+  ghost(from, to, code) {
+    this.clearGhost();
+    const img = document.createElement("img"); img.src = PIECES[code]; img.alt = ""; img.className = "ghost-piece";
+    const box = this._cellBox(from); img.style.left = box.left + "%"; img.style.top = box.top + "%";
+    this.el.appendChild(img); this._ghost = img;
+    const t = this.grid.querySelector(`[data-sq="${to}"]`); if (t) t.classList.add("target");
+    this._ghostTo = to;
+    const [dx, dy] = this._offset(to, from);
+    if (this._reduced() || !img.animate) { img.style.transform = `translate(${dx}%, ${dy}%)`; img.style.opacity = ".7"; return; }
+    img.animate([
+      { transform: "translate(0,0) scale(1)", opacity: 0 },
+      { transform: "translate(0,0) scale(1.08)", opacity: 0.75, offset: 0.1, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
+      { transform: `translate(${dx}%, ${dy}%) scale(1.08)`, opacity: 0.75, offset: 0.5 },
+      { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0.75, offset: 0.78 },
+      { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0, offset: 0.92 },
+      { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0 },
+    ], { duration: 1800, iterations: Infinity, easing: "linear" });
+  }
+  clearGhost() {
+    if (this._ghost) { this._ghost.remove(); this._ghost = null; }
+    this.grid.querySelectorAll(".target").forEach(x => x.classList.remove("target"));
+  }
+  glow(sq) { const c = this.grid.querySelector(`[data-sq="${sq}"]`); if (c) c.classList.add("glow"); }
+  pop(sq) {
+    const c = this.grid.querySelector(`[data-sq="${sq}"]`); if (!c) return;
+    const burst = document.createElement("i"); burst.className = "burst"; c.appendChild(burst);
+    setTimeout(() => burst.remove(), 650);
+    const img = c.querySelector("img");
+    if (img && img.animate && !this._reduced()) img.animate([{ transform: "scale(1)" }, { transform: "scale(1.18)" }, { transform: "scale(1)" }], { duration: 300, delay: 120, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+  }
+  shake(sq) {
+    const img = this.grid.querySelector(`[data-sq="${sq}"] img`);
+    if (img && img.animate && !this._reduced()) img.animate([{ transform: "translateX(0)" }, { transform: "translateX(-9%)" }, { transform: "translateX(8%)" }, { transform: "translateX(-5%)" }, { transform: "translateX(3%)" }, { transform: "translateX(0)" }], { duration: 320, easing: "ease-out" });
   }
   _drawArrows() {
     const pos = sq => { const [f, r] = sqFR(sq); return this.orientation === "w" ? [f * 100 + 50, (8 - r) * 100 + 50] : [(7 - f) * 100 + 50, (r - 1) * 100 + 50]; };
