@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 python3 build.py
 tmp="$(mktemp -d)"
 trap 'git worktree remove --force "$tmp" >/dev/null 2>&1 || true' EXIT
-git fetch --depth=1 origin gh-pages
+git fetch --depth=1 origin "+gh-pages:refs/remotes/origin/gh-pages"
 git worktree add -f -B gh-pages "$tmp" origin/gh-pages >/dev/null
 find "$tmp" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 cp -R site/. "$tmp"/
