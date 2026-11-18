@@ -4,7 +4,7 @@ Learn the **Caro-Kann** (as Black) as a reflex game, then play it against Stockf
 
 **Live:** https://elijahgerak.github.io/chess-coach/ (open in Safari → Share → Add to Home Screen)
 
-- **Learn:** White throws a move, you answer before the timer runs out. Three hearts, fifteen rounds, combos. Each new answer is shown once as a see-through piece; after that it comes back on a spaced schedule.
+- **Learn:** White throws a move, you answer before the timer runs out. Three hearts, combos, a score. Eight short runs (plus Everything); clear a run five times to open the next, and go back to any earlier one whenever you like. Each new answer is shown once as a see-through piece.
 - **Play:** Stockfish 19, strength from about 600 to full, adjusting as you win and lose. Mistakes pause the game so you can try again. Your plan is drawn on the board.
 - **Review:** paste a chess.com game (Share → PGN → Copy) and find the better moves at your key moments.
 

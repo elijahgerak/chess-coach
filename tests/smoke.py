@@ -40,8 +40,8 @@ async def main():
         await page.goto(url); await page.wait_for_timeout(800)
         await page.screenshot(path=os.path.join(OUT, "1-home.png"))
 
-        # A full run
-        await page.click('[data-d="start"]')
+        # A full run of "White's first moves"
+        await page.click(".btn.go")
         shots = {"new": "2-new-ghost.png", "go": "3-your-move.png"}
         wrong_done = slow_done = False
         while True:
@@ -50,12 +50,13 @@ async def main():
             await page.wait_for_timeout(450)
             if st in shots:
                 await page.screenshot(path=os.path.join(OUT, shots.pop(st)))
-            if st == "go" and not wrong_done and await page.evaluate("() => D.round") >= 3:
-                wrong_done = True; hearts = await page.evaluate("() => D.hearts")
+            if st == "go" and not wrong_done:
+                wrong_done = True; hearts = await page.evaluate("() => D.hearts"); qlen = await page.evaluate("() => D.queue.length")
                 await page.evaluate("() => { const g = new Chess(D.g.fen()); const m = g.moves({verbose: true}).find(m => !D.card.answers.includes(m.san)); onDuelMove({from: m.from, to: m.to}); }")
                 await page.wait_for_timeout(300)
                 await page.screenshot(path=os.path.join(OUT, "4-wrong.png"))
                 if await page.evaluate("() => D.hearts") != hearts - 1: fails.append("a wrong move should cost a heart")
+                if await page.evaluate("() => D.queue.length") != qlen + 1: fails.append("a miss should add the position back into the run")
                 if "Not that one" not in await page.inner_text("#duel-panel"): fails.append("wrong move should say 'Not that one'")
                 continue
             if st == "go" and wrong_done and not slow_done:
@@ -66,11 +67,30 @@ async def main():
             await page.evaluate("() => onDuelMove({from: D.want.from, to: D.want.to})")
             await page.wait_for_timeout(200)
             if st == "go" and await page.evaluate("() => D.state") != "done": fails.append("right answer wasn't accepted")
+        await page.wait_for_timeout(600)
+        await page.screenshot(path=os.path.join(OUT, "5-run-cleared.png"))
+        if await page.evaluate("() => S.duel.progress.first.clears") != 1: fails.append("a cleared run should count once")
+        if await page.evaluate("() => D.round") != 14: fails.append(f"run should be 6 x 2 + 2 misses = 14 rounds, got {await page.evaluate('() => D.round')}")
+
+        # Out of hearts doesn't count
+        await page.click('[data-d="start"]')
+        while True:
+            st = await wait_state(page, ["new", "go", "fix", "over"])
+            if st == "over": break
+            if st == "go": await page.evaluate("() => { const g = new Chess(D.g.fen()); const m = g.moves({verbose: true}).find(m => !D.card.answers.includes(m.san)); onDuelMove({from: m.from, to: m.to}); }")
+            else: await page.evaluate("() => onDuelMove({from: D.want.from, to: D.want.to})")
+            await page.wait_for_timeout(150)
         await page.wait_for_timeout(500)
-        await page.screenshot(path=os.path.join(OUT, "5-run-over.png"))
-        if await page.evaluate("() => D.round") != 15: fails.append(f"run should last 15 rounds, got {await page.evaluate('() => D.round')}")
-        if await page.evaluate("() => knownCount()") < 2: fails.append("should know at least 2 answers after a run")
-        await page.click('[data-d="home"]'); await page.wait_for_timeout(300)
+        if await page.evaluate("() => S.duel.progress.first.clears") != 1: fails.append("running out of hearts shouldn't count")
+        if "Out of hearts" not in await page.inner_text("#duel-panel"): fails.append("should say 'Out of hearts'")
+
+        # Run 2 opens after 5 clears; run 1 stays open
+        await page.click('[data-d="home"]'); await page.wait_for_timeout(200)
+        if not await page.evaluate("() => document.querySelector('[data-run=\"1\"].run-row').disabled"): fails.append("run 2 should be locked before 5 clears")
+        await page.evaluate("() => { S.duel.progress.first.clears = 5; renderLearn(); }"); await page.wait_for_timeout(200)
+        if await page.evaluate("() => document.querySelector('[data-run=\"1\"].run-row').disabled"): fails.append("run 2 should open after 5 clears")
+        if await page.evaluate("() => document.querySelector('[data-run=\"0\"].run-row').disabled"): fails.append("run 1 should stay open")
+        if "White protects" not in await page.inner_text(".btn.go"): fails.append("the big button should move on to run 2")
         await page.screenshot(path=os.path.join(OUT, "6-home-after.png"))
 
         # Play still works
@@ -81,7 +101,7 @@ async def main():
         if "Your move" not in coach: fails.append(f"play coach: {coach[:100]!r}")
         await b.close()
     if errors: fails.append(f"errors: {errors}")
-    print("ok | duel run + play work" if not fails else "FAIL | " + " ; ".join(fails))
+    print("ok | runs, clears, unlocks + play work" if not fails else "FAIL | " + " ; ".join(fails))
     sys.exit(0 if not fails else 1)
 
 if __name__ == "__main__":

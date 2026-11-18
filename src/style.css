@@ -250,7 +250,7 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 0; }
 .nav .btn { flex: 1; background: var(--raised); font-size: 20px; box-shadow: var(--shadow); }
 
 /* learn: reflex duel */
-.btn.go { height: 58px; font-size: 18px; }
+.btn.go { flex: none; height: 58px; font-size: 18px; }
 .hud { display: flex; align-items: center; gap: 12px; min-height: 42px; }
 .hearts { display: flex; gap: 4px; flex: 1; }
 .heart { width: 26px; height: 26px; display: block; color: var(--t-worse); }
@@ -269,9 +269,26 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 0; }
 .gain span { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-left: 6px; }
 .big-score { font-size: 64px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
 .record { font-weight: 600; color: #c99700; }
-.known { display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); }
-.known .meter { margin-top: 4px; }
-.known b { color: var(--ink); font-weight: 600; }
+.duel-home { display: flex; flex-direction: column; gap: 14px; padding-top: 8px; width: 100%; max-width: 560px; }
+.runs { list-style: none; margin: 6px 0 0; padding: 0; background: var(--raised); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+.runs li + li { border-top: 1px solid var(--rule); }
+.run-row { width: 100%; border: 0; background: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; text-align: left; transition: background .15s var(--ease-out); }
+.run-row:active { background: var(--paper); }
+.run-row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.run-row .txt b { font-weight: 600; font-size: 16px; letter-spacing: -0.01em; }
+.run-row .txt span { color: var(--ink-2); font-size: 14px; }
+.run-row.locked { cursor: default; }
+.run-row.locked .txt { opacity: .45; }
+.run-row svg { color: var(--ink-2); flex: none; }
+.pips { display: flex; gap: 5px; flex: none; }
+.pips i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); }
+.pips i.on { background: var(--fam); }
+.pips i.new { animation: pip .45s var(--ease-out) .15s both; }
+@keyframes pip { from { transform: scale(2.2); opacity: 0; } }
+.best { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; flex: none; }
+.over-pips { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.over-pips .pips { gap: 7px; }
+.over-pips .pips i { width: 16px; height: 16px; }
 .cap { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
 .capsub { color: var(--ink-2); font-size: 16px; max-width: 46ch; }
 .chip { align-self: flex-start; font-size: 13px; font-weight: 600; color: #fff; background: var(--fam); padding: 5px 12px; border-radius: 999px; }

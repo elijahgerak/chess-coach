@@ -221,6 +221,20 @@ const FAMILIES = {
   attack: { name: "White attacks d5", color: "#7a5ae0" },
   rare: { name: "Rare tries", color: "#d14f8a" },
 };
+// ===== Learn runs: each run is a fixed set of positions (White just moved, you answer).
+// Clear a run 5 times (finish with a heart left) to open the next. Every card in the deck is in exactly one run.
+const RUNS = [
+  { id: "first", name: "White's first moves", family: "start", cues: ["e4", "e4 c6 d4", "e4 c6 d4 d5 Nc3", "e4 c6 d4 d5 Nd2", "e4 c6 d4 d5 e5", "e4 c6 d4 d5 exd5"] },
+  { id: "protect", name: "White protects", family: "protect", cues: ["e4 c6 d4 d5 Nc3 dxe4 Nxe4", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5"] },
+  { id: "protect2", name: "White protects, part 2", family: "protect", cues: ["e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3 Bxd3 Qxd3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3 Bxd3 Qxd3 e6 Bd2", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3 Bxd3 Qxd3 e6 Bd2 Ngf6 O-O-O", "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Bf5 Ng3 Bg6 N1e2", "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Bf5 Ng3 Bg6 N1e2 Nf6 Nf4"] },
+  { id: "push", name: "White pushes", family: "push", cues: ["e4 c6 d4 d5 e5 Bf5 Nf3", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 c5 O-O", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 c5 O-O Nc6 c3", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 c5 O-O Nc6 c3 cxd4 cxd4"] },
+  { id: "swap", name: "White swaps", family: "swap", cues: ["e4 c6 d4 d5 exd5 cxd5 Bd3", "e4 c6 d4 d5 exd5 cxd5 Bd3 Nc6 c3", "e4 c6 d4 d5 exd5 cxd5 Bd3 Nc6 c3 Nf6 Bf4", "e4 c6 d4 d5 exd5 cxd5 Bd3 Nc6 c3 Nf6 Bf4 Bg4 Qb3", "e4 c6 d4 d5 exd5 cxd5 Bd3 Nc6 c3 Nf6 Bf4 Bg4 Qb3 Qd7 Nd2", "e4 c6 d4 d5 exd5 cxd5 Bd3 Nc6 c3 Nf6 Bf4 Bg4 Qb3 Qd7 Nd2 e6 Ngf3", "e4 c6 d4 d5 exd5 cxd5 Bd3 Nc6 c3 Nf6 Bf4 Bg4 Qb3 Qd7 Nd2 e6 Ngf3 Bd6 Bxd6", "e4 c6 d4 d5 exd5 cxd5 Bd3 Nc6 c3 Nf6 Bf4 Bg4 Qb3 Qd7 Nd2 e6 Ngf3 Bd6 Bxd6 Qxd6 O-O"] },
+  { id: "c4", name: "White attacks with c4", family: "attack", cues: ["e4 c6 d4 d5 exd5 cxd5 c4", "e4 c6 d4 d5 exd5 cxd5 c4 Nf6 Nc3", "e4 c6 d4 d5 exd5 cxd5 c4 Nf6 Nc3 e6 Nf3", "e4 c6 d4 d5 exd5 cxd5 c4 Nf6 Nc3 e6 Nf3 Be7 cxd5", "e4 c6 d4 d5 exd5 cxd5 c4 Nf6 Nc3 e6 Nf3 Be7 cxd5 Nxd5 Bd3", "e4 c6 d4 d5 exd5 cxd5 c4 Nf6 Nc3 e6 Nf3 Be7 cxd5 Nxd5 Bd3 Nc6 O-O", "e4 c6 d4 d5 exd5 cxd5 c4 Nf6 Nc3 e6 Nf3 Be7 cxd5 Nxd5 Bd3 Nc6 O-O O-O Re1"] },
+  { id: "rarepush", name: "Surprise pushes", family: "rare", cues: ["e4 c6 d4 d5 e5 Bf5 h4", "e4 c6 d4 d5 e5 Bf5 h4 h5 c4", "e4 c6 d4 d5 e5 Bf5 Nc3", "e4 c6 d4 d5 e5 Bf5 Nc3 e6 g4", "e4 c6 d4 d5 e5 Bf5 Nc3 e6 g4 Bg6 Nge2", "e4 c6 d4 d5 e5 Bf5 Bd3", "e4 c6 d4 d5 e5 Bf5 Bd3 Bxd3 Qxd3", "e4 c6 d4 d5 e5 Bf5 Bd3 Bxd3 Qxd3 e6 Nf3"] },
+  { id: "rarestart", name: "Surprise starts", family: "rare", cues: ["e4 c6 Nc3", "e4 c6 Nc3 d5 Nf3", "e4 c6 Nc3 d5 Nf3 Bg4 h3", "e4 c6 Nc3 d5 Nf3 Bg4 h3 Bxf3 Qxf3", "e4 c6 Nc3 d5 Nf3 Bg4 h3 Bxf3 Qxf3 e6 d3", "e4 c6 Nc3 d5 Nf3 Bg4 h3 Bxf3 Qxf3 e6 d3 Nf6 Bd2", "e4 c6 d4 d5 f3", "e4 c6 d4 d5 f3 e6 Nc3"] },
+  { id: "all", name: "Everything", family: "start", all: true },
+];
+
 // White's choice → family, so the duel can flash the right color
 function familyOf(sans) {
   const s = sans.join(" ");

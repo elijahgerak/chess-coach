@@ -1,6 +1,6 @@
 // Every repertoire line, duel card and trap must be legal chess.
 const { app, Chess } = require("./lib");
-const { REPERTOIRE, FAMILIES, familyOf, duelCards, TRAPS, PLANS, parsePgnText } = app;
+const { REPERTOIRE, FAMILIES, RUNS, familyOf, duelCards, fenKey, TRAPS, PLANS, parsePgnText } = app;
 let fail = 0;
 const bad = msg => { fail++; console.log("FAIL", msg); };
 for (const [key, op] of Object.entries(REPERTOIRE))
@@ -21,6 +21,20 @@ for (const k of deck.order) {
   if (c.parent && deck.cards[c.parent].depth >= c.depth) bad(`duel ${c.sans.join(" ")}: parent should come earlier`);
   if (!FAMILIES[familyOf(c.sans)]) bad(`duel ${c.sans.join(" ")}: no family`);
 }
+// every card sits in exactly one run
+const inRun = {};
+for (const r of RUNS) {
+  if (!FAMILIES[r.family]) bad(`run ${r.id}: unknown family`);
+  if (r.all) continue;
+  if (r.cues.length < 4 || r.cues.length > 8) bad(`run ${r.id}: ${r.cues.length} cards (keep 4-8)`);
+  for (const cue of r.cues) {
+    const g = new Chess(); cue.split(" ").forEach(m => g.move(m) || bad(`run ${r.id}: illegal ${m} in "${cue}"`));
+    const k = fenKey(g.fen());
+    if (!deck.cards[k]) bad(`run ${r.id}: "${cue}" is not a position you answer`);
+    else if (inRun[k]) bad(`run ${r.id}: "${cue}" is also in ${inRun[k]}`); else inRun[k] = r.id;
+  }
+}
+for (const k of deck.order) if (!inRun[k]) bad(`no run has "${deck.cards[k].sans.join(" ")}"`);
 for (const t of TRAPS) { const g = new Chess(); t.moves.split(" ").forEach(m => g.move(m) || bad(`trap: illegal ${m}`)); if (!g.move(t.san)) bad(`trap ${t.san} illegal`); }
 for (const [id, p] of Object.entries(PLANS)) if (!p.focus || !p.moves || p.moves.length < p.steps.filter(s => s.check !== "tip").length) bad(`plan ${id}: missing focus/moves`);
 console.log(fail ? `${fail} problem(s)` : `data: all lines, ${deck.order.length} duel cards, traps and plans OK`);
