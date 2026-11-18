@@ -158,6 +158,18 @@ p { margin: 0; }
 .pill:active { transform: scale(.96); }
 .btn[disabled] { opacity: .45; pointer-events: none; }
 
+/* the next-move card */
+.next .ctx { font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+.next .ctx b { color: var(--ink); font-weight: 600; }
+.next .ctx em { font-style: normal; font-weight: 700; }
+.do-row { display: flex; align-items: center; gap: 12px; }
+.do { flex: 1; font-size: 20px; line-height: 1.3; letter-spacing: -0.02em; }
+.next .why { font-size: 15px; color: var(--ink-2); line-height: 1.45; }
+.next .why b { color: var(--ink); }
+.soft-card { box-shadow: none; background: transparent; padding: 4px 2px; }
+.seg { display: flex; background: var(--paper); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg button { flex: 1; border: 0; background: transparent; border-radius: 9px; height: 40px; font-size: 14px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.seg button.on { background: var(--raised); color: var(--ink); box-shadow: var(--shadow); }
 /* plan strip (sits under "Your move") */
 .plan-strip { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; border: 0; cursor: pointer; background: color-mix(in oklab, var(--plan) 10%, var(--raised)); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); transition: transform .16s var(--ease-out); }
 .plan-strip:active { transform: scale(.98); }
@@ -1554,7 +1566,7 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 
 // ================= Saved state =================
 const KEY = "ckqg-coach-v1";
-const DEFAULT = { opening: null, level: 3, pause: true, plan: { stage: 1, games: 0, streak: 0, miss: 0, manual: false }, deck: {}, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", newDay: { d: "", n: 0 }, lines: {}, newLines: { d: "", n: 0 }, threat: { on: true, clean: 0 } };
+const DEFAULT = { opening: null, level: 3, pause: true, plan: { stage: 1, games: 0, streak: 0, miss: 0, manual: false }, deck: {}, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", newDay: { d: "", n: 0 }, lines: {}, newLines: { d: "", n: 0 }, threat: { on: true, clean: 0 }, guide: { stage: 1, streak: 0 } };
 let S = JSON.parse(JSON.stringify(DEFAULT));
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
 const Store = { ref: null, saving: false, dirty: false, t: 0 };
@@ -1777,76 +1789,113 @@ function showView(v) {
 }
 
 // ================= PLAY =================
-const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} }, playing: false, replayId: 0, lastAfterCp: null, oppMistake: null, threat: null, wasInBook: true, leftBookNow: false };
+// Every turn shows one card: what to do next. Help steps back as you play well:
+// 1 shows the move, 2 shows the piece, 3 shows the plan, 4 you're on your own. "Show me" always reveals the move.
+const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, playing: false, replayId: 0, lastAfterCp: null, oppMistake: null, threat: null, wasInBook: true, leftBookNow: false, suggest: null, revealed: false };
 let playBoard;
+const HELP = ["", "Show the move", "Show the piece", "Show the plan", "On my own"];
+const HELP_UP = ["", "", "Nice. Now I'll just ring the piece to move.", "Now I'll show the plan. You pick the move.", "You're finding moves yourself now. Tap Show me if you get stuck."];
 
 function canUserMove() { return ENGINE === "ok" && !P.busy && !P.over && !P.wait && !P.playing && P.game.turn() === P.you; }
+function myTurnIdle() { return P.game.turn() === P.you && !P.busy && !P.wait && !P.playing && !P.over; }
 function kingSq(g) { if (!g.in_check()) return null; const m = boardMap(g); return Object.keys(m).find(s => m[s].type === "k" && m[s].color === g.turn()); }
-function planOverlay() {
-  // Rings on the squares that matter right now, plus an arrow for the next plan move when the engine agrees it's sound
+function helpStage() { return P.revealed ? 1 : S.guide.stage; }
+
+// ---- The suggested move, in words a beginner can follow
+function shortComment(c) {
+  // Split on real sentence ends (not the dots in "...d5"), keep it to about one line
+  const parts = String(c || "").split(/(?<=[a-z0-9)][.!?])\s+(?=[A-Z(])/);
+  let out = ""; for (const s of parts) { out += (out ? " " : "") + s; if (out.length >= 40) break; }
+  return out.trim();
+}
+function whyFor(fen, m) {
+  const rule = principleFor(fen, m, P.you);
+  if (m.captured && rule) return rule;
+  const idea = shortIdea(fen, m);
+  if (idea && !m.captured) return "This " + idea + ".";
+  if (rule) return rule;
+  const info = planInfo(); const next = info.plan && info.steps.find(s => s.done === false);
+  return next ? `Your plan here: ${next.t}` : "It's the engine's top choice here.";
+}
+function describeMove(m) {
+  if (m.flags.includes("k") || m.flags.includes("q")) return `Castle: move your king to ${m.to}.`;
+  const promo = m.promotion ? " Make it a queen." : "";
+  if (m.captured) return `Take the ${NAME[m.captured]} on ${m.to} with your ${NAME[m.piece]}.${promo}`;
+  return `Move your ${NAME[m.piece]} from ${m.from} to ${m.to}.${promo}`;
+}
+function makeSuggest(fen, lines) {
+  const g = new Chess(fen);
+  const book = bookAt(P.opening, fen);
+  if (book.length && !P.oppMistake) {
+    const b = book.slice().sort((x, y) => y.weight - x.weight)[0]; const m = g.move(b.san);
+    if (m) return { m, why: shortComment(b.c) || whyFor(fen, m), src: "book" };
+  }
+  const u = P.oppMistake ? P.oppMistake.punish : (lines && lines[0] && lines[0].pv && lines[0].pv[0]);
+  if (!u) return null;
+  const m = g.move(uciObj(u)); return m ? { m, why: whyFor(fen, m), src: "engine" } : null;
+}
+
+function overlay() {
   const out = { marks: {}, arrows: [] };
-  if (P.game.turn() !== P.you || P.busy || P.wait || P.playing || P.over || P.oppMistake || (P.threat && S.threat.on) || !P.hist.length) return out;
-  const info = planInfo(); if (planPending(info)) return out;
-  if (S.plan.stage >= 3 && !P.plan.answered[info.sid]) return out;
-  if (info.plan) {
-    out.marks[info.plan.focus] = "focus";
-    const idx = info.steps.findIndex(s => s.done === false);
-    const cand = idx >= 0 && info.plan.moves && info.plan.moves[idx] ? info.plan.moves[idx] : [];
-    if (cand.length && P.pre) {
-      const top = new Set(P.pre.lines.filter(l => l.pv && l.pv[0] && winPct(toCp(l.score)) >= winPct(toCp(P.pre.lines[0].score)) - 6).map(l => l.pv[0]));
-      const legal = P.game.moves({ verbose: true }).filter(m => cand.includes(m.san.replace(/[+#]/g, "")) && top.has(moveUci(m)));
-      if (legal[0]) out.arrows.push({ from: legal[0].from, to: legal[0].to, kind: "plan" });
+  if (!myTurnIdle() || !P.hist.length && P.you === "b") return out;
+  if (P.threat && S.threat.on && !P.oppMistake) out.marks[P.threat.sq] = "threat";
+  const st = helpStage(); const sug = P.suggest;
+  if (st === 1 && sug) out.arrows.push({ from: sug.m.from, to: sug.m.to });
+  else if (st === 2 && sug) out.marks[sug.m.from] = "hint";
+  else if (st === 3) {
+    const info = planInfo(); const map = boardMap(P.game);
+    if (info.plan) out.marks[info.plan.focus] = out.marks[info.plan.focus] || "focus";
+    else {
+      const g = info.goals.items.find(i => i.done === false);
+      if (g && g.id === "develop") { const home = P.you === "w" ? { n: ["b1", "g1"], b: ["c1", "f1"] } : { n: ["b8", "g8"], b: ["c8", "f8"] }; for (const t of ["n", "b"]) for (const sq of home[t]) if (map[sq] && map[sq].type === t && map[sq].color === P.you) out.marks[sq] = "focus"; }
+      if (g && g.id === "castle") { const k = Object.keys(map).find(x => map[x].type === "k" && map[x].color === P.you); if (k) out.marks[k] = "focus"; }
+      if (g && g.id === "worst") { const w = worstPiece(map, P.you); if (w) out.marks[w.sq] = "focus"; }
     }
-  } else {
-    const map = boardMap(P.game); const g = info.goals.items.find(i => i.done === false);
-    if (g && g.id === "develop") { const home = P.you === "w" ? { n: ["b1", "g1"], b: ["c1", "f1"] } : { n: ["b8", "g8"], b: ["c8", "f8"] }; for (const t of ["n", "b"]) for (const sq of home[t]) if (map[sq] && map[sq].type === t && map[sq].color === P.you) out.marks[sq] = "focus"; }
-    if (g && g.id === "castle") { const k = Object.keys(map).find(x => map[x].type === "k" && map[x].color === P.you); if (k) out.marks[k] = "focus"; }
-    if (g && g.id === "worst") { const w = worstPiece(map, P.you); if (w) out.marks[w.sq] = "focus"; }
   }
   return out;
 }
 function renderPlayBoard(anim) {
-  const ov = planOverlay();
+  const ov = overlay();
   const marks = { ...ov.marks, ...P.marks };
-  if (P.oppMistake && P.last) { marks[P.last.from] = marks[P.last.from] || "lastbad"; marks[P.last.to] = "lastbad"; }
-  else if (P.threat && S.threat.on && P.game.turn() === P.you && !P.busy && !P.wait) marks[P.threat.sq] = "threat";
+  if (P.oppMistake && P.last && myTurnIdle()) { marks[P.last.from] = marks[P.last.from] || "lastbad"; marks[P.last.to] = "lastbad"; }
   playBoard.set({ fen: P.game.fen(), orientation: P.you, last: P.last, check: kingSq(P.game), arrows: P.arrows.length ? P.arrows : ov.arrows, marks, animate: anim });
 }
-function updateEval(score, stm) {
-  if (!score || !$("#evalfill")) return;
-  const cpMe = (stm === P.you ? 1 : -1) * toCp(score);
-  $("#evalfill").style.width = winPct(cpMe).toFixed(1) + "%";
-  $("#evalbar").setAttribute("aria-label", `Your winning chances: ${Math.round(winPct(cpMe))}%`);
-}
+function updateEval() {}
 function setThinking(on) { $("#thinking").classList.toggle("on", on); }
 
 function newGame() {
   P.gid++; coachEngine.stop(); botEngine.stop(); P.replayId++; P.playing = false;
   P.opening = S.opening || "caro"; P.you = REPERTOIRE[P.opening].you;
-  Object.assign(P, { threat: null, wasInBook: true, leftBookNow: false, lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} } });
+  Object.assign(P, { threat: null, wasInBook: true, leftBookNow: false, lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, suggest: null, revealed: false });
   setTop();
-  renderPlayBoard(); renderCoach(); renderPlan();
+  renderPlayBoard(); renderCoach();
   if (P.you === "b") botMove(); else startUserTurn();
 }
 function startUserTurn() {
   const fen = P.game.fen(); const gid = P.gid;
-  P.preFen = fen; P.pre = null; P.hintText = ""; P.hintStep = 0;
+  P.preFen = fen; P.pre = null; P.revealed = false;
   { const inBook = bookAt(P.opening, fen).length > 0; P.leftBookNow = P.wasInBook && !inBook && P.hist.length >= 4; P.wasInBook = inBook; }
-  P.prePromise = coachEngine.ready.then(() => analyze(fen, "depth 18 movetime 2500", 3, j => { if (P.gid === gid && P.preFen === fen && j.lines[1]) updateEval(j.lines[1].score, P.you); }))
-    .then(r => {
-      if (P.preFen !== fen) return r;
-      P.pre = r;
-      if (P.lastAfterCp != null && P.theirs && !P.theirs.book && !P.retry) {
-        const nowCp = toCp(r.lines[0].score);
-        const oppLoss = winPct(nowCp) - winPct(P.lastAfterCp);
-        if (oppLoss >= 10 && winPct(P.lastAfterCp) < 90) { P.oppMistake = { cls: oppLoss >= 20 ? "blunder" : "mistake", label: P.theirs.label, punish: r.lines[0].pv[0] }; }
-      }
-      P.lastAfterCp = null;
-      renderPlayBoard(); renderCoach();
-      return r;
-    });
+  P.suggest = makeSuggest(fen, null);
+  P.prePromise = coachEngine.ready.then(() => analyze(fen, "depth 18 movetime 2500", 3, j => {
+    if (P.gid !== gid || P.preFen !== fen || P.suggest || (j.depth || 0) < 10) return;
+    const lines = Object.keys(j.lines).sort((a, b) => a - b).map(k => j.lines[k]);
+    P.suggest = makeSuggest(fen, lines); renderPlayBoard(); renderCoach();
+  })).then(r => {
+    if (P.preFen !== fen) return r;
+    P.pre = r;
+    if (P.lastAfterCp != null && P.theirs && !P.theirs.book && !P.retry) {
+      const nowCp = toCp(r.lines[0].score);
+      const oppLoss = winPct(nowCp) - winPct(P.lastAfterCp);
+      if (oppLoss >= 10 && winPct(P.lastAfterCp) < 90) P.oppMistake = { cls: oppLoss >= 20 ? "blunder" : "mistake", label: P.theirs.label, punish: r.lines[0].pv[0] };
+    }
+    P.lastAfterCp = null;
+    const fin = makeSuggest(fen, r.lines);
+    if (fin && (!P.suggest || P.suggest.src !== "book" || P.oppMistake) && (!P.suggest || moveUci(fin.m) !== moveUci(P.suggest.m))) P.suggest = fin;
+    renderPlayBoard(); renderCoach();
+    return r;
+  });
   P.prePromise.catch(() => {});
-  renderCoach(); renderPlan();
+  renderPlayBoard(); renderCoach();
 }
 async function onUserMove(m, dragged) {
   if (!canUserMove()) return;
@@ -1854,7 +1903,8 @@ async function onUserMove(m, dragged) {
   const histBefore = P.game.history({ verbose: true });
   const mv = P.game.move(m); if (!mv) return;
   const label = moveLabel(fenBefore, mv.san);
-  P.last = { from: mv.from, to: mv.to }; P.arrows = []; P.marks = {}; P.busy = true; P.theirs = null; P.hintText = "";
+  const helped = P.revealed && S.guide.stage > 1;
+  P.last = { from: mv.from, to: mv.to }; P.arrows = []; P.marks = {}; P.busy = true; P.theirs = null; P.suggest = null;
   P.mine = { label, san: mv.san, pending: true };
   renderPlayBoard(dragged ? null : { from: mv.from, to: mv.to }); renderCoach();
   coachEngine.stop();
@@ -1866,16 +1916,22 @@ async function onUserMove(m, dragged) {
   const after = isBook ? null : await analyze(P.game.fen(), "depth 15 movetime 1000", 1);
   if (P.gid !== gid) return;
   const r = explainMove({ fenBefore, move: mv, me: P.you, before: pre, after, opening: P.opening, history: histBefore, book });
-  if (after) updateEval(after.lines[0].score, P.game.turn());
   const wasRetry = P.retry && P.retry.fen === fenBefore;
   if (P.oppMistake && !["inaccuracy", "mistake", "blunder"].includes(r.cls)) r.punished = moveUci(mv) === P.oppMistake.punish || r.loss < 3;
   P.oppMistake = null; P.threat = null; P.leftBookNow = false;
   P.lastAfterCp = after ? r.afterCp : null;
   P.hist.push({ fenBefore, move: mv, r, label });
   P.mine = { label, san: mv.san, r, fenBefore, move: mv, retry: wasRetry };
+  // Help steps back as you play well
+  const good = ["book", "best", "excellent", "good"].includes(r.cls);
+  if (good && !helped) S.guide.streak++;
+  else if (r.cls === "mistake" || r.cls === "blunder") S.guide.streak = 0;
+  const need = S.guide.stage === 1 ? 40 : 30;
+  if (S.guide.streak >= need && S.guide.stage < 4) { S.guide.stage++; S.guide.streak = 0; setTimeout(() => toast(HELP_UP[S.guide.stage]), 600); }
+  save();
   const bad = r.cls === "mistake" || r.cls === "blunder";
   if (bad && !wasRetry) addMistakeCard(fenBefore, mv, r, pre, "play", label);
-  if (bad && S.pause && !P.game.game_over()) { P.busy = false; P.wait = { fenBefore, move: mv, r, pre }; renderCoach(); setTimeout(() => { if (P.wait && P.wait.r === r) replayPlay(r); }, 700); return; }
+  if (bad && !P.game.game_over()) { P.busy = false; P.wait = { fenBefore, move: mv, r, pre }; renderCoach(); setTimeout(() => { if (P.wait && P.wait.r === r) replayPlay(r); }, 700); return; }
   if (!bad) P.retry = null;
   if (checkOver()) return;
   botMove();
@@ -1912,37 +1968,17 @@ function undoMine() {
   P.last = l ? { from: l.from, to: l.to } : null;
   P.retry = { fen: w.fenBefore, r: w.r, tries: (P.retry && P.retry.fen === w.fenBefore ? P.retry.tries : 0) + 1 };
   P.wait = null; P.pre = w.pre; P.preFen = w.fenBefore; P.prePromise = Promise.resolve(w.pre);
-  if (w.pre && w.pre.lines[0]) updateEval(w.pre.lines[0].score, P.you);
-  P.hintText = ""; P.hintStep = 0; P.oppMistake = null;
+  P.oppMistake = null; P.revealed = false;
+  P.suggest = makeSuggest(w.fenBefore, w.pre && w.pre.lines);
 }
-function tryAgain() { cancelReplay(); undoMine(); P.mine = null; renderPlayBoard(); renderCoach(); }
-function showBetter() {
-  cancelReplay(); const w = P.wait; undoMine();
-  const b = uciObj(w.r.bestUci); P.arrows = [{ from: b.from, to: b.to }];
-  P.hintText = w.r.better || `Play ${w.r.best}.`; P.mine = null;
-  renderPlayBoard(); renderCoach();
-}
+function tryAgain() { cancelReplay(); undoMine(); P.arrows = []; P.mine = null; renderPlayBoard(); renderCoach(); }
 function keepPlaying() { cancelReplay(); P.arrows = []; P.wait = null; P.retry = null; if (checkOver()) return; botMove(); }
-function giveHint() {
-  const pre = P.pre; if (!pre || !pre.lines[0].pv[0]) { P.hintText = "One second, the coach is still looking…"; renderCoach(); return; }
-  const fen = P.game.fen(); const best = pvToSan(fen, pre.lines[0].pv, 1)[0];
-  P.hintStep++;
-  if (P.hintStep === 1) {
-    const map = boardMap(P.game);
-    const threatened = Object.keys(map).filter(s => map[s].color === P.you && map[s].type !== "k" && map[s].type !== "p" && attackers(map, s, other(P.you)).length && (!attackers(map, s, P.you).length || attackers(map, s, other(P.you)).some(a => VAL[map[a].type] < VAL[map[s].type])));
-    const idea = moveIdea(fen, best);
-    if (threatened.length && best.from === threatened[0]) P.hintText = `Your ${NAME[map[threatened[0]].type]} on ${threatened[0]} is under attack. Deal with that first.`;
-    else P.hintText = idea ? `Look for a move that ${idea.replace(/^it /, "")}.` : "Which of your pieces isn't doing much? Find it a better square.";
-  } else if (P.hintStep === 2) { P.marks = { [best.from]: "hint" }; P.hintText = `Move the piece on ${best.from}.`; renderPlayBoard(); }
-  else { P.marks = {}; P.arrows = [{ from: best.from, to: best.to, kind: "hint" }]; P.hintText = `Play ${best.san}.`; renderPlayBoard(); }
-  renderCoach();
-}
 async function botMove() {
   const gid = P.gid; P.busy = true; setThinking(true); renderCoach();
   const fen = P.game.fen(); const t0 = performance.now();
   let uci, idea = null;
   const book = bookAt(P.opening, fen);
-  if (book.length) { const b = pickWeighted(book); uci = b.uci; idea = b.c; }
+  if (book.length) { const b = pickWeighted(book); uci = b.uci; idea = shortComment(b.c); }
   else { try { uci = await botChoose(fen); } catch (e) { if (P.gid === gid) { setThinking(false); P.busy = false; ENGINE = "fail"; renderCoach(); } return; } }
   await sleep(Math.max(0, 500 - (performance.now() - t0)));
   if (P.gid !== gid) return;
@@ -1968,9 +2004,7 @@ function finishGame(res, why) {
   P.over = { res, why }; P.busy = false; setThinking(false);
   S.stats.played++; S.stats[res]++;
   const mine = P.hist.filter(h => !h.bot && h.r);
-  P.over.count = { blunder: mine.filter(h => h.r.cls === "blunder").length, mistake: mine.filter(h => h.r.cls === "mistake").length, inaccuracy: mine.filter(h => h.r.cls === "inaccuracy").length };
-  const avgLoss = mine.length ? mine.reduce((s, h) => s + Math.min(h.r.loss, 40), 0) / mine.length : 0;
-  P.over.acc = Math.max(0, Math.min(100, Math.round(103.17 * Math.exp(-0.0435 * avgLoss) - 3.17)));
+  P.over.count = { blunder: mine.filter(h => h.r.cls === "blunder").length, mistake: mine.filter(h => h.r.cls === "mistake").length };
   const oldLevel = S.level;
   if (res === "won" && S.level < LEVELS.length - 1) S.level++;
   if (res === "lost" && S.level > 0) S.level--;
@@ -1978,8 +2012,8 @@ function finishGame(res, why) {
   const slips = mine.filter(h => h.r.tags && h.r.tags.some(t => t === "hangs" || t === "fork" || t === "allows-mate")).length;
   if (S.threat.on) { S.threat.clean = slips ? 0 : S.threat.clean + 1; if (S.threat.clean >= 3) { S.threat.on = false; setTimeout(() => toast("You're catching threats yourself now. Threat warnings are off."), 4200); } }
   else if (slips >= 2) { S.threat.on = true; S.threat.clean = 0; setTimeout(() => toast("Threat warnings are back on for a bit."), 4200); }
-  if (!S.plan.manual && S.plan.stage === 1) { S.plan.games++; if (S.plan.games >= 2) { S.plan.stage = 2; S.plan.streak = 0; setTimeout(() => toast("Next step: I'll quiz you on the plan before showing it."), 2600); } }
-  save(); renderCoach(); renderPlan();
+  if (S.guide.stage >= 2 && P.over.count.blunder + P.over.count.mistake >= 3) { S.guide.stage--; S.guide.streak = 0; setTimeout(() => toast("I'll give you a bit more help for now."), 2600); }
+  save(); renderPlayBoard(); renderCoach();
 }
 function gamePgn() {
   const g = new Chess(); for (const h of P.hist) g.move(h.move.san);
@@ -1998,6 +2032,31 @@ function feedbackHTML(r) {
   return h;
 }
 function watchHTML(r) { return P.playing ? `<p class="watch" id="watch">${esc(r.show.caption)}</p>` : `<div><button class="link" data-act="watch">Replay the moves</button></div>`; }
+function contextHTML() {
+  const opp = COLOR[other(P.you)];
+  const r = P.mine && P.mine.r;
+  const nice = r && ["book", "best", "excellent"].includes(r.cls) ? (r.punished ? "You punished their mistake. " : ["Nice. ", "Good. ", "Yes. "][P.hist.length % 3]) : "";
+  if (P.retry) return "That move was a mistake. Try a better one.";
+  if (P.oppMistake) { const c = CLS[P.oppMistake.cls]; return `<em class="tone-${c.tone}">${c.nag}</em> ${opp}'s <b>${esc(P.oppMistake.label)}</b> was a ${P.oppMistake.cls}. You can punish it.`; }
+  if (P.threat && S.threat.on) return `${nice}<span class="tone-worse">${opp} is attacking your ${NAME[P.threat.type]} on ${P.threat.sq}.</span>`;
+  if (P.leftBookNow) return `${nice}The opening is over. From here, follow the plan.`;
+  if (P.theirs) return `${nice}${opp} played <b>${esc(P.theirs.label)}</b>.${P.theirs.idea ? " " + bold(P.theirs.idea) : ""}`;
+  return P.you === "b" ? "You're Black. White moves first." : "You're White, so you move first.";
+}
+function nextCardHTML() {
+  const st = helpStage(); const sug = P.suggest; const info = planInfo();
+  let main = "", why = "", btn = "";
+  const firstEver = S.stats.played === 0 && !P.hist.some(x => !x.bot);
+  if (st <= 2 && !sug) { main = "Finding your best move…"; }
+  else if (st === 1) { main = describeMove(sug.m); why = sug.why + (firstEver ? " Tap the piece, then tap where the arrow points." : ""); }
+  else if (st === 2) { main = `Move the ${NAME[sug.m.piece]} in the blue box.`; why = sug.why; }
+  else if (st === 3) {
+    if (info.plan) { const next = info.steps.find(s => s.done === false) || info.steps[0]; main = `Plan: ${next.t}`; why = pressureText(pressureOn(boardMap(P.game), info.plan.focus, P.you), COLOR[other(P.you)]); }
+    else { const g = info.goals.items.find(i => i.done === false) || info.goals.items.find(i => i.done === null); main = g ? `Goal: ${g.t}` : "Your move."; why = g && g.id === "develop" ? "The ringed pieces still need to come out." : g && g.id === "castle" ? "Your king is ringed. Get it safe." : ""; }
+  } else { main = "Your move."; why = "Look at checks, captures and threats first."; }
+  if (S.guide.stage > 1 && !P.revealed && sug) btn = `<button class="pill" data-act="reveal">Show me</button>`;
+  return `<div class="card next enter"><p class="ctx">${contextHTML()}</p><div class="do-row"><h2 class="do">${esc(main)}</h2>${btn}</div>${why ? `<p class="why">${bold(why)}</p>` : ""}${P.hist.length ? `<div><button class="link" data-act="plan">See the plan</button></div>` : ""}</div>`;
+}
 function renderCoach() {
   const el = $("#coach"); if (!el) return;
   let h = "";
@@ -2013,30 +2072,18 @@ function renderCoach() {
     const r = P.wait.r;
     h = `<div class="card enter">${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}${r.show ? watchHTML(r) : ""}
       <div class="actions"><button class="btn primary" data-act="retry">Try again</button><button class="btn soft" data-act="keep">Keep playing</button></div></div>`;
+  } else if (ENGINE === "loading" && P.game.turn() === P.you) {
+    h = `<div class="turn"><p>Loading the engine…</p></div>`;
+  } else if (myTurnIdle()) {
+    h = nextCardHTML();
+    const r = P.mine && P.mine.r;
+    if (r && ["good", "inaccuracy"].includes(r.cls)) h += `<div class="card soft-card enter">${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}</div>`;
   } else {
-    let turn = "", hintBtn = "";
-    if (ENGINE === "loading" && P.game.turn() === P.you) turn = "Loading the engine…";
-    else if (P.busy && !(P.mine && P.mine.pending)) turn = `${opp} is thinking…`;
-    else if (P.mine && P.mine.pending) turn = "Checking your move…";
-    else if (!P.busy && P.game.turn() === P.you) {
-      const first = !P.hist.some(x => !x.bot);
-      turn = P.retry ? "Find a better move." : "Your move.";
-      if (P.oppMistake && !P.retry) turn = `<em class="tone-${CLS[P.oppMistake.cls].tone}">${CLS[P.oppMistake.cls].nag}</em> ${opp}'s <b>${esc(P.oppMistake.label)}</b> was a ${P.oppMistake.cls}.<span>Find the move that punishes it.</span>`;
-      if (!P.oppMistake && !P.retry && P.threat && S.threat.on) turn += `<span class="tone-worse">Watch out: your ${NAME[P.threat.type]} on ${P.threat.sq} is under attack.</span>`;
-      else if (!P.oppMistake && !P.retry && P.leftBookNow) turn += `<span>The opening is over. Now follow your plan below.</span>`;
-      if (first && !P.retry) turn += P.you === "b" ? `<span>You're Black. Answer with <b>...c6</b>, the Caro-Kann.</span>` : `<span>You're White. Start with <b>d4</b>, then <b>c4</b>.</span>`;
-      hintBtn = `<button class="pill" data-act="hint">${P.hintStep ? "More help" : "Hint"}</button>`;
-    }
-    if (turn) h += `<div class="turn"><p>${turn}</p>${hintBtn}</div>`;
-    if (P.hintText) h += `<p class="say enter">${bold(P.hintText)}</p>`;
-    if (!P.busy && P.game.turn() === P.you && !P.oppMistake && !(P.threat && S.threat.on)) h += planStripHTML();
-    if (P.mine && P.mine.r) {
-      const r = P.mine.r;
-      h += `<div class="card enter">${r.punished ? `<p class="say"><b>You punished their mistake.</b></p>` : ""}${P.mine.retry && !["mistake", "blunder"].includes(r.cls) ? `<p class="say"><b>That's better.</b></p>` : ""}${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}${r.show && P.playing ? watchHTML(r) : ""}</div>`;
-    }
+    h = `<div class="turn"><p>${P.mine && P.mine.pending ? "Checking your move…" : `${opp} is thinking…`}</p></div>`;
   }
   el.innerHTML = h;
 }
+function renderPlan() {}
 function planInfo() {
   const map = boardMap(P.game); const hist = P.game.history({ verbose: true });
   const num = +P.game.fen().split(" ")[5];
@@ -2046,90 +2093,15 @@ function planInfo() {
   const steps = plan ? plan.steps.map(s => ({ ...s, done: s.check === "tip" ? null : runCheck(s.check, map, P.you, hist) })) : [];
   return { goals, sid, plan, steps };
 }
-function planStripHTML() {
-  if (!P.hist.length || P.over) return "";
-  const info = planInfo();
-  const opp = COLOR[other(P.you)];
-  if (planPending(info)) return `<button class="plan-strip ask" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>Quick question: what's your plan here?</b><span>Tap to answer.</span></span></button>`;
-  if (info.plan && (S.plan.stage < 3 || P.plan.answered[info.sid])) {
-    const next = info.steps.find(s => s.done === false) || info.steps[0];
-    const pr = pressureOn(boardMap(P.game), info.plan.focus, P.you);
-    return `<button class="plan-strip" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>Plan: ${esc(next.t)}</b><span>${esc(pressureText(pr, opp))}</span></span></button>`;
-  }
-  if (info.plan) return `<button class="plan-strip" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>What's your plan?</b><span>Tap to check it.</span></span></button>`;
-  const g = info.goals.items.find(i => i.done === false) || info.goals.items.find(i => i.done === null);
-  if (!g) return "";
-  return `<button class="plan-strip" data-act="plan"><span class="dotring" aria-hidden="true"></span><span class="txt"><b>Goal: ${esc(g.t)}</b><span>The ringed ${g.id === "develop" ? "pieces still need to come out" : g.id === "castle" ? "king should castle soon" : "square is where to look"}.</span></span></button>`;
-}
-function planPending(info) { return info.sid && S.plan.stage >= 2 && !P.plan.answered[info.sid] && !P.over; }
-function renderPlan() {
-  const row = $("#plan-row"); if (row) row.hidden = true; return;
-  if (!P.hist.length) { row.hidden = true; return; }
-  row.hidden = false;
-  const info = planInfo();
-  let k, v, dots = "";
-  if (planPending(info)) { k = "Quick question"; v = "What's your plan here?"; row.classList.add("ask"); }
-  else {
-    row.classList.remove("ask");
-    if (info.plan) {
-      const real = info.steps.filter(s => s.done !== null);
-      const next = info.steps.find(s => s.done === false) || info.steps[info.steps.length - 1];
-      k = "Your plan"; v = next.t;
-      dots = real.map(s => `<i class="${s.done ? "on" : ""}"></i>`).join("");
-    } else {
-      const g = info.goals; const real = g.items.filter(i => i.done !== null);
-      const next = real.find(i => !i.done) || g.items.find(i => i.done === null) || g.items[0];
-      k = "Next goal"; v = next.t;
-      dots = real.map(i => `<i class="${i.done ? "on" : ""}"></i>`).join("");
-    }
-  }
-  row.innerHTML = `<span class="txt"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`;
-}
 function checklistHTML(items) {
   return `<ul class="checklist">${items.map(i => `<li class="${i.done ? "done" : ""}"><span class="tick ${i.done ? "on" : i.done === null ? "tip" : ""}" aria-label="${i.done ? "Done" : i.done === null ? "Tip" : "Not yet"}"></span><span><b>${esc(i.t)}</b>${i.why ? `<small>${esc(i.why)}</small>` : ""}</span></li>`).join("")}</ul>`;
 }
-const STAGES = ["Show me", "Quiz me", "On my own"];
 function openPlanSheet() {
   const info = planInfo();
-  const pending = planPending(info);
-  let h = "";
-  if (info.plan && pending && S.plan.stage === 2) {
-    const q = info.plan.quiz; const opts = [q.right, ...q.wrong].map((t, i) => ({ t, right: i === 0 })).sort(() => Math.random() - 0.5);
-    h += `<h2>What's your plan?</h2><p class="lede">${esc(q.q)}</p><section><div class="choice" id="quiz">${opts.map(o => `<button class="opt" data-right="${o.right ? 1 : 0}"><span><b>${esc(o.t)}</b></span></button>`).join("")}</div><p class="say" id="quiz-why" hidden></p></section><div id="plan-after" hidden></div>`;
-  } else if (info.plan && pending && S.plan.stage === 3) {
-    h += `<h2>Make your plan</h2><p class="lede">Look at the pawns. Think of your next 2 or 3 steps, then check.</p>
-      <section><div class="actions"><button class="btn primary wide" data-act="reveal-plan">Show the plan</button></div></section><div id="plan-after" hidden></div>`;
-  }
   const planBody = info.plan ? `<section><h3>${esc(info.plan.name)}</h3><p class="sub">${esc(info.plan.look)}</p>${checklistHTML(info.steps)}</section>` : "";
   const goalsBody = `<section><h3>${info.goals.phase === "opening" ? "Opening goals" : info.goals.phase === "endgame" ? "Endgame goals" : "Middlegame goals"}</h3>${checklistHTML(info.goals.items)}</section>`;
-  const habit = `<section><p class="habit"><b>Before every move:</b> look at checks, captures, and threats. Yours and your opponent's.</p></section>`;
-  const stage = `<section><p class="sub">${S.plan.stage === 1 ? "Right now I show you the plan. Soon I'll quiz you, then you'll make your own." : S.plan.stage === 2 ? `I quiz you first now. ${Math.max(0, 4 - S.plan.streak)} more right in a row and you'll make your own plans.` : "You make the plan now, then check it."}</p></section>`;
-  if (pending) h += `<div id="plan-hidden" hidden>${planBody}${goalsBody}</div>`;
-  else h += `<h2>${info.plan ? "Your plan" : "Your goals"}</h2><p class="lede">${info.plan ? "Based on the pawns on the board right now." : "No special pawn structure yet. Follow the basics."}</p>${planBody}${goalsBody}`;
-  h += habit + stage;
-  openSheet(h, sh => {
-    const reveal = () => { const a = sh.querySelector("#plan-after"); const hid = sh.querySelector("#plan-hidden"); if (a && hid) { a.innerHTML = hid.innerHTML; a.hidden = false; } P.plan.answered[info.sid] = true; renderPlan(); };
-    sh.querySelectorAll("#quiz .opt").forEach(b => b.onclick = () => {
-      if (sh.querySelector("#quiz").dataset.done) return; sh.querySelector("#quiz").dataset.done = 1;
-      const right = b.dataset.right === "1";
-      sh.querySelectorAll("#quiz .opt").forEach(x => x.classList.add(x.dataset.right === "1" ? "right" : (x === b ? "wrong" : "")));
-      const w = sh.querySelector("#quiz-why"); w.hidden = false; w.innerHTML = `<b>${right ? "Right." : "Not quite."}</b> ${esc(info.plan.quiz.why)}`;
-      if (!S.plan.manual) {
-        S.plan.streak = right ? S.plan.streak + 1 : 0;
-        if (S.plan.streak >= 4) { S.plan.stage = 3; S.plan.miss = 0; setTimeout(() => toast("You're ready. From now on, you make the plan and I check it."), 600); }
-      }
-      save(); reveal();
-    });
-    const rv = sh.querySelector('[data-act="reveal-plan"]');
-    if (rv) rv.onclick = () => {
-      reveal(); rv.parentElement.innerHTML = `<p class="sub">Did your plan match?</p><button class="btn primary" data-self="1">I had it</button><button class="btn soft" data-self="0">I missed it</button>`;
-      sh.querySelectorAll("[data-self]").forEach(b => b.onclick = () => {
-        const ok = b.dataset.self === "1";
-        if (!S.plan.manual) { S.plan.miss = ok ? 0 : S.plan.miss + 1; if (S.plan.miss >= 2) { S.plan.stage = 2; S.plan.streak = 0; toast("Let's go back to quizzes for a bit."); } }
-        save(); b.parentElement.innerHTML = `<p class="sub">${ok ? "Nice. Keep doing that every game." : "No problem. Read the plan above, then try it on the board."}</p>`;
-      });
-    };
-  });
+  openSheet(`<h2>${info.plan ? "Your plan" : "Your goals"}</h2><p class="lede">${info.plan ? "Based on the pawns on the board right now." : "No special pawn structure yet. Follow the basics."}</p>${planBody}${goalsBody}
+    <section><p class="sub"><b>Before every move:</b> look at checks, captures and threats. Yours and your opponent's.</p></section>`);
 }
 
 // ================= Settings + first run =================
@@ -2145,7 +2117,9 @@ function openChooser() {
 function openSettings() {
   openSheet(`<h2>Settings</h2>
     <section><h3>Opening</h3><div class="choice">${openingOptions(S.opening)}</div></section>
-    <section><h3>Opponent strength</h3><div class="stepper"><button class="btn" data-lv="-1" aria-label="Weaker">−</button><output id="lv">${levelName(S.level)}</output><button class="btn" data-lv="1" aria-label="Stronger">+</button></div><p class="sub">Goes up when you win, down when you lose.</p></section>`, sh => {
+    <section><h3>Opponent strength</h3><div class="stepper"><button class="btn" data-lv="-1" aria-label="Weaker">−</button><output id="lv">${levelName(S.level)}</output><button class="btn" data-lv="1" aria-label="Stronger">+</button></div><p class="sub">Goes up when you win, down when you lose.</p></section>
+    <section><h3>Help</h3><div class="seg" role="group" aria-label="Help level">${[1, 2, 3, 4].map(i => `<button data-help="${i}" class="${S.guide.stage === i ? "on" : ""}">${["", "Move", "Piece", "Plan", "Off"][i]}</button>`).join("")}</div><p class="sub" id="help-sub">${HELP[S.guide.stage]}. It steps back on its own as you play well.</p></section>`, sh => {
+    sh.querySelectorAll("[data-help]").forEach(b => b.onclick = () => { S.guide.stage = +b.dataset.help; S.guide.streak = 0; save(); sh.querySelectorAll("[data-help]").forEach(x => x.classList.toggle("on", x === b)); sh.querySelector("#help-sub").textContent = HELP[S.guide.stage] + ". It steps back on its own as you play well."; renderPlayBoard(); renderCoach(); });
     sh.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { const ch = S.opening !== b.dataset.open; S.opening = b.dataset.open; save(); closeSheet(); if (ch) newGame(); });
     sh.querySelectorAll("[data-lv]").forEach(b => b.onclick = () => { S.level = Math.max(0, Math.min(LEVELS.length - 1, S.level + +b.dataset.lv)); sh.querySelector("#lv").textContent = levelName(S.level); setTop(); save(); });
   });
@@ -2532,7 +2506,8 @@ function wire() {
     const b = e.target.closest("[data-act]"); if (!b) return;
     const a = b.dataset.act;
     if (a === "plan") openPlanSheet();
-    if (a === "retry") tryAgain(); if (a === "show") showBetter(); if (a === "keep") keepPlaying(); if (a === "hint") giveHint();
+    if (a === "retry") tryAgain(); if (a === "keep") keepPlaying();
+    if (a === "reveal") { P.revealed = true; renderPlayBoard(); renderCoach(); }
     if (a === "new") newGame();
     if (a === "review") { const parsed = parseGame(gamePgn()); location.hash = "#review"; startReview(parsed, P.you); }
     if (a === "watch") { const r = (P.wait || P.mine || {}).r; if (r && !P.busy) replayPlay(r); }
