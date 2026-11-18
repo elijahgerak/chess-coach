@@ -11,7 +11,7 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 
 // ================= Saved state =================
 const KEY = "ckqg-coach-v1";
-const DEFAULT = { opening: null, level: 3, pause: true, plan: { stage: 1, games: 0, streak: 0, miss: 0, manual: false }, deck: {}, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", newDay: { d: "", n: 0 } };
+const DEFAULT = { opening: null, level: 3, pause: true, plan: { stage: 1, games: 0, streak: 0, miss: 0, manual: false }, deck: {}, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", newDay: { d: "", n: 0 }, lines: {}, newLines: { d: "", n: 0 }, threat: { on: true, clean: 0 } };
 let S = JSON.parse(JSON.stringify(DEFAULT));
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
 const Store = { ref: null, saving: false, dirty: false, t: 0 };
@@ -37,7 +37,7 @@ async function connectPlatform() {
     if (snap.exists) {
       const data = snap.data();
       S = Object.assign(JSON.parse(JSON.stringify(DEFAULT)), JSON.parse(JSON.stringify(data)));
-      seedConcepts(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+      seedConcepts(); seedLines(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
       updateBadge(); if (currentView() === "practice") renderPractice();
       if (currentView() === "review") renderReview();
       setTop();
@@ -148,6 +148,21 @@ function seedConcepts() {
     S.deck[id] = { id, kind: "concept", fen: g.fen(), accept: c.accept, prompt: c.prompt, answer: c.answer, principle: c.principle, why: c.why, title: c.title, opening: c.opening, box: 0, due: 0, isNew: true };
   }
 }
+// Repertoire lines as drill cards (learned move by move, spaced like everything else)
+function seedLines() {
+  const all = [];
+  for (const [op, R] of Object.entries(REPERTOIRE)) R.lines.forEach((l, i) => all.push({ op, l, i }));
+  all.sort((a, b) => b.l.weight - a.l.weight || a.i - b.i);
+  all.forEach((x, n) => { const id = x.op + ":" + x.l.name; if (!S.lines[id]) S.lines[id] = { id, opening: x.op, name: x.l.name, box: 0, due: 0, isNew: true, order: n }; else S.lines[id].order = n; });
+}
+function dueLines() {
+  const now = Date.now(); const d = today();
+  if (S.newLines.d !== d) S.newLines = { d, n: 0 };
+  const L = Object.values(S.lines).filter(l => REPERTOIRE[l.opening].lines.some(x => x.name === l.name));
+  const due = L.filter(l => !l.isNew && l.due <= now);
+  const fresh = L.filter(l => l.isNew).sort((a, b) => a.order - b.order).slice(0, Math.max(0, 2 - S.newLines.n));
+  return { due, fresh, count: due.length + fresh.length, learned: L.filter(l => !l.isNew && l.box >= 1).length, total: L.length };
+}
 function addMistakeCard(fen, mv, r, pre, source, label) {
   const id = "m:" + fenKey(fen);
   if (S.deck[id] || !r.best) return false;
@@ -163,7 +178,7 @@ function dueCards() {
   return { due, fresh, count: due.length + fresh.length };
 }
 function updateBadge() {
-  const n = dueCards().count; const b = $("#badge-practice");
+  const n = dueCards().count + dueLines().count; const b = $("#badge-practice");
   b.textContent = n; b.hidden = n === 0;
 }
 function schedule(card, ok) {
@@ -173,7 +188,7 @@ function schedule(card, ok) {
   save(); updateBadge();
 }
 function nextDueText() {
-  const later = Object.values(S.deck).filter(c => !c.isNew).map(c => c.due).filter(t => t > Date.now()).sort((a, b) => a - b)[0];
+  const later = [...Object.values(S.deck), ...Object.values(S.lines)].filter(c => !c.isNew).map(c => c.due).filter(t => t > Date.now()).sort((a, b) => a - b)[0];
   if (!later) return "";
   const h = (later - Date.now()) / 3600000;
   return h < 20 ? "Next review: later today." : h < 44 ? "Next review: tomorrow." : `Next review: in ${Math.round(h / 24)} days.`;
@@ -204,7 +219,7 @@ let SHEET_ONCLOSE = null;
 
 function setTop() {
   const v = currentView();
-  const T = { play: ["Stockfish", levelName(S.level)], practice: ["Practice", "Your mistakes and key ideas"], review: ["Review", "Your chess.com games"] }[v] || ["Stockfish", levelName(S.level)];
+  const T = { play: ["Stockfish", levelName(S.level)], practice: ["Practice", "Your openings, ideas and mistakes"], review: ["Review", "Your chess.com games"] }[v] || ["Stockfish", levelName(S.level)];
   $("#top-title").textContent = T[0]; $("#top-sub").textContent = T[1];
   $("#restart").hidden = v !== "play"; $("#open-settings").hidden = v !== "play";
 }
@@ -219,7 +234,7 @@ function showView(v) {
 }
 
 // ================= PLAY =================
-const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} }, playing: false, replayId: 0, lastAfterCp: null, oppMistake: null };
+const P = { game: new Chess(), hist: [], you: "b", opening: "caro", gid: 0, busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, preFen: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} }, playing: false, replayId: 0, lastAfterCp: null, oppMistake: null, threat: null, wasInBook: true, leftBookNow: false };
 let playBoard;
 
 function canUserMove() { return ENGINE === "ok" && !P.busy && !P.over && !P.wait && !P.playing && P.game.turn() === P.you; }
@@ -227,7 +242,7 @@ function kingSq(g) { if (!g.in_check()) return null; const m = boardMap(g); retu
 function planOverlay() {
   // Rings on the squares that matter right now, plus an arrow for the next plan move when the engine agrees it's sound
   const out = { marks: {}, arrows: [] };
-  if (P.game.turn() !== P.you || P.busy || P.wait || P.playing || P.over || P.oppMistake || !P.hist.length) return out;
+  if (P.game.turn() !== P.you || P.busy || P.wait || P.playing || P.over || P.oppMistake || (P.threat && S.threat.on) || !P.hist.length) return out;
   const info = planInfo(); if (planPending(info)) return out;
   if (S.plan.stage >= 3 && !P.plan.answered[info.sid]) return out;
   if (info.plan) {
@@ -251,6 +266,7 @@ function renderPlayBoard(anim) {
   const ov = planOverlay();
   const marks = { ...ov.marks, ...P.marks };
   if (P.oppMistake && P.last) { marks[P.last.from] = marks[P.last.from] || "lastbad"; marks[P.last.to] = "lastbad"; }
+  else if (P.threat && S.threat.on && P.game.turn() === P.you && !P.busy && !P.wait) marks[P.threat.sq] = "threat";
   playBoard.set({ fen: P.game.fen(), orientation: P.you, last: P.last, check: kingSq(P.game), arrows: P.arrows.length ? P.arrows : ov.arrows, marks, animate: anim });
 }
 function updateEval(score, stm) {
@@ -264,7 +280,7 @@ function setThinking(on) { $("#thinking").classList.toggle("on", on); }
 function newGame() {
   P.gid++; coachEngine.stop(); botEngine.stop(); P.replayId++; P.playing = false;
   P.opening = S.opening || "caro"; P.you = REPERTOIRE[P.opening].you;
-  Object.assign(P, { lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} } });
+  Object.assign(P, { threat: null, wasInBook: true, leftBookNow: false, lastAfterCp: null, oppMistake: null, game: new Chess(), hist: [], busy: false, over: null, wait: null, retry: null, hintText: "", hintStep: 0, pre: null, prePromise: null, last: null, mine: null, theirs: null, arrows: [], marks: {}, plan: { asked: {}, answered: {} } });
   setTop();
   renderPlayBoard(); renderCoach(); renderPlan();
   if (P.you === "b") botMove(); else startUserTurn();
@@ -272,6 +288,7 @@ function newGame() {
 function startUserTurn() {
   const fen = P.game.fen(); const gid = P.gid;
   P.preFen = fen; P.pre = null; P.hintText = ""; P.hintStep = 0;
+  { const inBook = bookAt(P.opening, fen).length > 0; P.leftBookNow = P.wasInBook && !inBook && P.hist.length >= 4; P.wasInBook = inBook; }
   P.prePromise = coachEngine.ready.then(() => analyze(fen, "depth 18 movetime 2500", 3, j => { if (P.gid === gid && P.preFen === fen && j.lines[1]) updateEval(j.lines[1].score, P.you); }))
     .then(r => {
       if (P.preFen !== fen) return r;
@@ -309,7 +326,7 @@ async function onUserMove(m, dragged) {
   if (after) updateEval(after.lines[0].score, P.game.turn());
   const wasRetry = P.retry && P.retry.fen === fenBefore;
   if (P.oppMistake && !["inaccuracy", "mistake", "blunder"].includes(r.cls)) r.punished = moveUci(mv) === P.oppMistake.punish || r.loss < 3;
-  P.oppMistake = null;
+  P.oppMistake = null; P.threat = null; P.leftBookNow = false;
   P.lastAfterCp = after ? r.afterCp : null;
   P.hist.push({ fenBefore, move: mv, r, label });
   P.mine = { label, san: mv.san, r, fenBefore, move: mv, retry: wasRetry };
@@ -391,6 +408,7 @@ async function botMove() {
   P.last = { from: mv.from, to: mv.to }; P.arrows = []; P.marks = {};
   P.theirs = { label: moveLabel(fen, mv.san), idea, book: book.length > 0 };
   P.hist.push({ fenBefore: fen, move: mv, bot: true });
+  { const map = boardMap(P.game); const t = Object.keys(map).find(x => map[x].color === P.you && "nbrq".includes(map[x].type) && isHanging(map, x)); P.threat = t ? { sq: t, type: map[t].type } : null; }
   setThinking(false); P.busy = false;
   renderPlayBoard({ from: mv.from, to: mv.to });
   if (checkOver()) return;
@@ -414,6 +432,9 @@ function finishGame(res, why) {
   if (res === "won" && S.level < LEVELS.length - 1) S.level++;
   if (res === "lost" && S.level > 0) S.level--;
   if (S.level !== oldLevel) setTimeout(() => toast(`Next opponent: ${levelName(S.level).toLowerCase()}.`), 900);
+  const slips = mine.filter(h => h.r.tags && h.r.tags.some(t => t === "hangs" || t === "fork" || t === "allows-mate")).length;
+  if (S.threat.on) { S.threat.clean = slips ? 0 : S.threat.clean + 1; if (S.threat.clean >= 3) { S.threat.on = false; setTimeout(() => toast("You're catching threats yourself now. Threat warnings are off."), 4200); } }
+  else if (slips >= 2) { S.threat.on = true; S.threat.clean = 0; setTimeout(() => toast("Threat warnings are back on for a bit."), 4200); }
   if (!S.plan.manual && S.plan.stage === 1) { S.plan.games++; if (S.plan.games >= 2) { S.plan.stage = 2; S.plan.streak = 0; setTimeout(() => toast("Next step: I'll quiz you on the plan before showing it."), 2600); } }
   save(); renderCoach(); renderPlan();
 }
@@ -458,12 +479,14 @@ function renderCoach() {
       const first = !P.hist.some(x => !x.bot);
       turn = P.retry ? "Find a better move." : "Your move.";
       if (P.oppMistake && !P.retry) turn = `<em class="tone-${CLS[P.oppMistake.cls].tone}">${CLS[P.oppMistake.cls].nag}</em> ${opp}'s <b>${esc(P.oppMistake.label)}</b> was a ${P.oppMistake.cls}.<span>Find the move that punishes it.</span>`;
+      if (!P.oppMistake && !P.retry && P.threat && S.threat.on) turn += `<span class="tone-worse">Watch out: your ${NAME[P.threat.type]} on ${P.threat.sq} is under attack.</span>`;
+      else if (!P.oppMistake && !P.retry && P.leftBookNow) turn += `<span>The opening is over. Now follow your plan below.</span>`;
       if (first && !P.retry) turn += P.you === "b" ? `<span>You're Black. Answer with <b>...c6</b>, the Caro-Kann.</span>` : `<span>You're White. Start with <b>d4</b>, then <b>c4</b>.</span>`;
       hintBtn = `<button class="pill" data-act="hint">${P.hintStep ? "More help" : "Hint"}</button>`;
     }
     if (turn) h += `<div class="turn"><p>${turn}</p>${hintBtn}</div>`;
     if (P.hintText) h += `<p class="say enter">${bold(P.hintText)}</p>`;
-    if (!P.busy && P.game.turn() === P.you && !P.oppMistake) h += planStripHTML();
+    if (!P.busy && P.game.turn() === P.you && !P.oppMistake && !(P.threat && S.threat.on)) h += planStripHTML();
     if (P.mine && P.mine.r) {
       const r = P.mine.r;
       h += `<div class="card enter">${r.punished ? `<p class="say"><b>You punished their mistake.</b></p>` : ""}${P.mine.retry && !["mistake", "blunder"].includes(r.cls) ? `<p class="say"><b>That's better.</b></p>` : ""}${verdictHTML(r, P.mine.label)}${feedbackHTML(r)}${r.show && P.playing ? watchHTML(r) : ""}</div>`;
@@ -589,15 +612,96 @@ function openSettings() {
 const PR = { queue: [], i: 0, card: null, state: "idle", res: null, wrongOnce: new Set(), right: 0, total: 0 };
 let prBoard;
 function startPractice() {
-  const { due, fresh } = dueCards();
-  const q = [...due, ...fresh].sort(() => Math.random() - 0.5).slice(0, 10);
-  Object.assign(PR, { queue: q, i: 0, state: "ask", res: null, wrongOnce: new Set(), right: 0, total: q.length });
+  const { due, fresh } = dueCards(); const L = dueLines();
+  const lines = [...L.due.sort((a, b) => a.due - b.due).slice(0, 3), ...L.fresh].map(l => ({ kind: "line", id: l.id }));
+  const cards = [...due, ...fresh].sort(() => Math.random() - 0.5).slice(0, 8);
+  const q = [...lines, ...cards];
+  Object.assign(PR, { queue: q, i: 0, state: "ask", res: null, wrongOnce: new Set(), right: 0, total: q.length, ld: null });
   loadCard();
 }
 function loadCard() {
-  PR.card = PR.queue[PR.i]; PR.res = null; PR.hint = false;
+  PR.card = PR.queue[PR.i]; PR.res = null; PR.hint = false; PR.ld = null;
   if (!PR.card) { PR.state = "done"; renderPractice(); return; }
+  if (PR.card.kind === "line") { startLine(PR.card); return; }
   PR.state = "ask"; renderPractice();
+}
+// ---- Line drill: you play your moves, the coach plays the other side
+function startLine(item) {
+  const card = S.lines[item.id]; const R = REPERTOIRE[card.opening];
+  const line = R.lines.find(l => l.name === card.name);
+  PR.ld = { id: item.id, card, op: card.opening, name: card.name, moves: parsePgnText(line.pgn), i: 0, g: new Chess(), me: R.you, misses: 0, fix: null, learn: card.isNew && !item.test, test: !!item.test, flash: "", token: (PR.ldToken = (PR.ldToken || 0) + 1) };
+  PR.state = "line"; renderPractice();
+  setTimeout(lineAdvance, 500);
+}
+async function lineAdvance() {
+  const ld = PR.ld; if (!ld) return; const tok = ld.token;
+  while (ld.i < ld.moves.length && ld.g.turn() !== ld.me) {
+    const fen = ld.g.fen(); const m = ld.g.move(ld.moves[ld.i].san); ld.i++;
+    ld.last = { from: m.from, to: m.to }; ld.theirs = { label: moveLabel(fen, m.san), c: ld.moves[ld.i - 1].c };
+    renderPractice({ from: m.from, to: m.to });
+    await sleep(650);
+    if (!PR.ld || PR.ld.token !== tok) return;
+  }
+  if (ld.i >= ld.moves.length) { lineDone(); return; }
+  ld.waiting = true; renderPractice();
+}
+function onLineMove(m) {
+  const ld = PR.ld; if (!ld || !ld.waiting) return;
+  const want = ld.moves[ld.i]; const fen = ld.g.fen();
+  const mv = ld.g.move(m); if (!mv) return;
+  if (mv.san.replace(/[+#]/g, "") === want.san.replace(/[+#]/g, "")) {
+    ld.i++; ld.waiting = false; ld.last = { from: mv.from, to: mv.to };
+    ld.flash = ld.fix || ld.learn ? "" : "Right."; ld.fix = null;
+    renderPractice({ from: mv.from, to: mv.to });
+    setTimeout(lineAdvance, 350);
+  } else {
+    ld.g.undo();
+    if (!ld.fix && !ld.learn) ld.misses++;
+    ld.fix = { label: moveLabel(fen, want.san), c: want.c, tried: mv.san };
+    ld.flash = ""; renderPractice();
+  }
+}
+function lineDone() {
+  const ld = PR.ld; const card = ld.card; ld.waiting = false; ld.done = true;
+  if (ld.learn) {
+    card.isNew = false; card.box = 0; card.due = Date.now(); S.newLines.n++;
+    PR.queue.push({ kind: "line", id: ld.id, test: true });
+  } else if (!PR.wrongOnce.has(ld.id)) {
+    const ok = ld.misses === 0;
+    card.box = ok ? Math.min(card.box + 1, INTERVALS.length - 1) : 1;
+    card.due = Date.now() + INTERVALS[card.box] * DAY - 3600000;
+    if (ok) PR.right++; else { PR.wrongOnce.add(ld.id); PR.queue.push({ kind: "line", id: ld.id, test: true }); }
+  }
+  save(); updateBadge(); renderPractice();
+}
+function renderLine(v, anim) {
+  const ld = PR.ld;
+  if (!v.querySelector(".live")) {
+    v.innerHTML = `<div class="live"><div class="main"><div class="bar"><div class="who"><b id="pr-count"></b><span id="pr-side"></span></div><button class="icon-btn" id="pr-quit" aria-label="End session">${ICONS.close}</button></div><div id="pr-board"></div></div><div class="side"><div class="coach" id="pr-coach" aria-live="polite"></div></div></div>`;
+    prBoard = new Board(v.querySelector("#pr-board"), { interactive: () => (PR.state === "ask") || (PR.state === "line" && PR.ld && PR.ld.waiting), onMove: m => PR.state === "line" ? onLineMove(m) : onPracticeMove(m) });
+    v.querySelector("#pr-quit").onclick = () => { PR.state = "idle"; PR.ld = null; renderPractice(); };
+  }
+  v.querySelector("#pr-count").textContent = `${Math.min(PR.i + 1, PR.queue.length)} of ${PR.queue.length}`;
+  v.querySelector("#pr-side").textContent = `${REPERTOIRE[ld.op].name}: ${ld.name}`;
+  const want = ld.waiting ? ld.moves[ld.i] : null; const arrows = [];
+  if (want && (ld.learn || ld.fix)) { const g2 = new Chess(ld.g.fen()); const w = g2.move(want.san); if (w) arrows.push({ from: w.from, to: w.to, kind: ld.fix ? "" : "plan" }); }
+  prBoard.set({ fen: ld.g.fen(), orientation: ld.me, last: ld.last, check: kingSq(ld.g), arrows, animate: anim });
+  const opp = COLOR[other(ld.me)];
+  let h = "";
+  if (ld.done) {
+    const perfect = !ld.learn && ld.misses === 0;
+    h += `<div class="card enter"><p class="status">${ld.learn ? "Line learned" : perfect ? "Perfect" : "Line done"}</p><p class="say">${ld.learn ? "Now try it from memory. It's coming up again at the end of this session." : perfect ? "You remembered every move. See you in a few days." : `${ld.misses} miss${ld.misses > 1 ? "es" : ""}. You'll play this line again at the end.`}</p>
+      <div class="actions"><button class="btn primary" data-pr="next">Next</button></div></div>`;
+  } else {
+    const head = ld.learn ? "New line. Play the arrow moves and read why." : ld.test && ld.card.box === 0 ? "From memory now. No arrows." : "Play your moves from memory.";
+    h += `<div class="turn"><p>${ld.waiting ? "Your move." : `${opp} is moving…`}<span>${head}</span></p></div>`;
+    if (ld.flash) h += `<p class="say enter tone-good"><b>${ld.flash}</b></p>`;
+    if (ld.fix) h += `<div class="card enter"><div class="verdict"><span class="nag tone-bad" aria-hidden="true">?</span><h2 class="tone-bad">Not this line's move</h2><span class="mv">You tried ${esc(ld.fix.tried)}</span></div><p class="say">Play <b>${esc(ld.fix.label)}</b>.${ld.fix.c ? " " + esc(ld.fix.c) : ""}</p></div>`;
+    else if (want && ld.learn) h += `<div class="card enter"><p class="say">Play <b>${esc(moveLabel(ld.g.fen(), want.san))}</b>.${want.c ? " " + esc(want.c) : ""}</p></div>`;
+    else if (ld.theirs && ld.theirs.c && ld.learn) h += `<p class="better">${opp} played <b>${esc(ld.theirs.label)}</b>. ${esc(ld.theirs.c)}</p>`;
+  }
+  const co = v.querySelector("#pr-coach"); co.innerHTML = h;
+  co.querySelectorAll("[data-pr]").forEach(b => b.onclick = () => { if (b.dataset.pr === "next") { PR.i++; loadCard(); } });
 }
 async function onPracticeMove(m) {
   if (PR.state !== "ask") return;
@@ -627,21 +731,25 @@ function gradeCard(c, ok) {
 }
 function renderPractice(anim, fenOverride) {
   const v = $("#view-practice");
+  if (PR.state === "line" && PR.ld) { renderLine(v, anim); return; }
   if (PR.state === "idle" || PR.state === "done") {
-    const { count } = dueCards();
+    const L = dueLines(); const count = dueCards().count + L.count;
     const done = PR.state === "done";
     v.innerHTML = `<div class="hero"><span class="big">${done ? (PR.total ? `${PR.right}/${PR.total}` : "0") : count}</span>
-      <h2 class="status">${done ? "Session done" : count ? (count === 1 ? "position to practice" : "positions to practice") : "All caught up"}</h2>
-      <p>${done ? `${nextDueText() || "Come back tomorrow."} Spacing practice out like this is what makes it stick.` : count ? "Each one is an idea from your openings or a mistake from your games. Find the best move." : `${nextDueText() || ""} Play a game. Your mistakes become new practice.`}</p></div>
+      <h2 class="status">${done ? "Session done" : count ? "to practice today" : "All caught up"}</h2>
+      <p>${done ? `${nextDueText() || "Come back tomorrow."} Short sessions every day beat long ones once a week.` : count ? "Your opening lines first, then ideas and mistakes from your games." : `${nextDueText() || ""} Play a game. Your mistakes become new practice.`}</p>
+      <div class="meter" aria-label="Opening lines learned"><i style="width:${Math.round(L.learned / Math.max(1, L.total) * 100)}%"></i></div>
+      <p class="sub">${L.learned} of ${L.total} opening lines learned</p></div>
       <div class="actions">${count && !done ? `<button class="btn primary wide" id="pr-start">Start practice</button>` : done && count ? `<button class="btn primary wide" id="pr-start">Keep going (${count} left)</button>` : `<button class="btn primary wide" id="pr-play">Play a game</button>`}</div>`;
     const st = v.querySelector("#pr-start"); if (st) st.onclick = startPractice;
     const pl = v.querySelector("#pr-play"); if (pl) pl.onclick = () => { location.hash = "#play"; };
     return;
   }
   const c = PR.card; const turn = c.fen.split(" ")[1];
+  if (v.querySelector(".live") && !prBoard) v.innerHTML = "";
   if (!v.querySelector(".live")) {
     v.innerHTML = `<div class="live"><div class="main"><div class="bar"><div class="who"><b id="pr-count"></b><span id="pr-side"></span></div><button class="icon-btn" id="pr-quit" aria-label="End session">${ICONS.close}</button></div><div id="pr-board"></div></div><div class="side"><div class="coach" id="pr-coach" aria-live="polite"></div></div></div>`;
-    prBoard = new Board(v.querySelector("#pr-board"), { interactive: () => PR.state === "ask", onMove: m => onPracticeMove(m) });
+    prBoard = new Board(v.querySelector("#pr-board"), { interactive: () => (PR.state === "ask") || (PR.state === "line" && PR.ld && PR.ld.waiting), onMove: m => PR.state === "line" ? onLineMove(m) : onPracticeMove(m) });
     v.querySelector("#pr-quit").onclick = () => { PR.state = "idle"; renderPractice(); };
   }
   v.querySelector("#pr-count").textContent = `${Math.min(PR.i + 1, PR.queue.length)} of ${PR.queue.length}`;
@@ -899,7 +1007,7 @@ function wire() {
   window.addEventListener("hashchange", () => showView(currentView()));
 }
 function boot() {
-  seedConcepts(); save();
+  seedConcepts(); seedLines(); save();
   wire(); updateBadge(); showView(currentView());
   if (!S.opening) { P.opening = "caro"; P.you = "b"; renderPlayBoard(); renderCoach(); openChooser(); }
   else newGame();
