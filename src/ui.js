@@ -11,7 +11,7 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 
 // ================= Saved state =================
 const KEY = "ckqg-coach-v1";
-const DEFAULT = { opening: "caro", level: 3, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", threat: { on: true, clean: 0 }, guide: { stage: 1, streak: 0 }, learn: {}, sound: true };
+const DEFAULT = { opening: "caro", level: 3, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", threat: { on: true, clean: 0 }, guide: { stage: 1, streak: 0 }, duel: { cards: {}, best: 0, bestCombo: 0, runs: 0 }, sound: true };
 let S = JSON.parse(JSON.stringify(DEFAULT));
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
 const Store = { ref: null, saving: false, dirty: false, t: 0 };
@@ -167,8 +167,8 @@ let SHEET_ONCLOSE = null;
 
 function setTop() {
   const v = currentView();
-  const inLevel = v === "learn" && LS.view === "level" && LS.lv;
-  const T = inLevel ? [LS.lv.title, LS.refresh ? "Quick refresh" : `Level ${PATH.indexOf(LS.lv) + 1} of ${PATH.length}`] : { learn: ["Caro-Kann", "Learn the moves"], play: ["Stockfish", levelName(S.level)], review: ["Review", "Your chess.com games"] }[v] || ["Caro-Kann", "Learn the moves"];
+  const inLevel = v === "learn" && D.view === "run";
+  const T = inLevel ? ["Caro-Kann", D.state === "over" ? "Run over" : `Round ${Math.max(1, D.round)} of ${RUN_LEN}`] : { learn: ["Caro-Kann", "Learn the answers"], play: ["Stockfish", levelName(S.level)], review: ["Review", "Your chess.com games"] }[v] || ["Caro-Kann", "Learn the answers"];
   $("#top-title").textContent = T[0]; $("#top-sub").textContent = T[1];
   $("#restart").hidden = v !== "play"; $("#open-settings").hidden = v === "review" || inLevel;
 }
@@ -177,6 +177,7 @@ function showView(v) {
   if (!["learn", "play", "review"].includes(v)) v = "learn";
   document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.id === "view-" + v));
   document.querySelectorAll(".tab").forEach(x => { x.classList.toggle("on", x.dataset.v === v); x.setAttribute("aria-current", x.dataset.v === v ? "page" : "false"); });
+  if (v !== "learn" && D.view === "run") { clearDuel(); D.view = "home"; D.state = "idle"; }
   if (v === "learn") renderLearn();
   if (v === "play" && !P.hist.length && !P.busy && !P.over && P.gid === 0) newGame();
   if (v === "review") renderReview();
@@ -523,12 +524,12 @@ function openSettings() {
   });
 }
 
-// ================= LEARN: the Caro-Kann as a game =================
-// Each level: Watch (an animated clip with one plain sentence per move), Follow (a ghost piece shows
-// where to go, you copy it), Solo (no ghost; if you pause, the piece glows, then the ghost returns).
-// Finished levels come back for a quick refresh on a spaced schedule. One "Continue" button picks what's next.
+// ================= LEARN: reflex duel =================
+// White throws a move, you counter before the timer runs out. Rounds jump between every Caro-Kann line
+// (the board zips there in fast-forward). A new answer is shown once as a see-through piece; after that
+// it's yours. 3 hearts, 15 rounds. Each answer comes back on a spaced schedule.
 
-// Tiny sound kit (no files): a wooden tock for moves, a chime for right, a soft thud for wrong
+// Tiny sound kit (no files)
 const SND = {
   ctx: null,
   init() { if (this.ctx || !S.sound) return; try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} },
@@ -541,179 +542,212 @@ const SND = {
       g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(vol, t + at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
       o.connect(g).connect(c.destination); o.start(t + at); o.stop(t + at + dur + 0.02);
     };
-    if (kind === "move") { tone(190, 0, 0.09, 0.22, "triangle"); tone(95, 0, 0.07, 0.12, "sine"); }
+    if (kind === "move") { tone(190, 0, 0.09, 0.22, "triangle"); tone(95, 0, 0.07, 0.12); }
+    if (kind === "throw") {
+      const len = 0.2, buf = c.createBuffer(1, Math.floor(c.sampleRate * len), c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+      src.buffer = buf; f.type = "bandpass"; f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(2600, t + len); g.gain.value = 0.25;
+      src.connect(f).connect(g).connect(c.destination); src.start(t); tone(190, 0.12, 0.09, 0.2, "triangle");
+    }
     if (kind === "good") { tone(660, 0, 0.18, 0.12); tone(990, 0.07, 0.24, 0.1); }
-    if (kind === "bad") { tone(150, 0, 0.18, 0.14, "triangle"); }
+    if (kind === "fast") { tone(660, 0, 0.14, 0.11); tone(990, 0.05, 0.14, 0.1); tone(1320, 0.1, 0.26, 0.09); }
+    if (kind === "bad") { tone(150, 0, 0.2, 0.16, "triangle"); }
     if (kind === "win") { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.3, 0.09)); }
+    if (kind === "lose") { [392, 330, 262].forEach((f, i) => tone(f, i * 0.12, 0.3, 0.09, "triangle")); }
   },
 };
 document.addEventListener("pointerdown", () => SND.init(), { once: true });
 
-const LS = { view: "map", lv: null, phase: "watch", runs: [], r: 0, i: 0, g: null, moves: [], waiting: false, slips: 0, combo: 0, best: 0, tok: 0, caption: "", sub: "", chip: null, timers: [], refresh: false, done: false };
-let learnBoard;
-const lstate = id => S.learn[id] || (S.learn[id] = { stars: 0, done: false, box: 0, due: 0 });
-function levelUnlocked(i) { return i === 0 || lstate(PATH[i - 1].id).done; }
-function dueLevels() { const now = Date.now(); return PATH.filter(l => { const s = S.learn[l.id]; return s && s.done && s.due && s.due <= now; }); }
-function updateBadge() { const n = dueLevels().length; const b = $("#badge-learn"); if (b) { b.textContent = n; b.hidden = n === 0; } }
-function nextUp() {
-  const due = dueLevels().sort((a, b) => S.learn[a.id].due - S.learn[b.id].due)[0];
-  if (due) return { lv: due, refresh: true };
-  const i = PATH.findIndex((l, k) => levelUnlocked(k) && !lstate(l.id).done);
-  if (i >= 0) return { lv: PATH[i], refresh: false };
-  return { lv: PATH[PATH.length - 1], refresh: true };
-}
-function commentFor(fen, san) { const b = bookAt("caro", fen).find(x => x.san === san); return b && b.c ? shortComment(b.c) : ""; }
-function buildRuns(lv) {
-  if (!lv.mix) return lv.runs.map(r => ({ start: r.start ? r.start.split(" ") : [], moves: r.moves.split(" ") }));
-  // Boss: three random lines from the start, first 10 moves each
-  const lines = REPERTOIRE.caro.lines.slice(); const pick = [];
-  while (pick.length < 3 && lines.length) { const tot = lines.reduce((s, l) => s + l.weight, 0); let x = Math.random() * tot; const k = lines.findIndex(l => (x -= l.weight) <= 0); pick.push(lines.splice(k < 0 ? 0 : k, 1)[0]); }
-  return pick.map(l => ({ start: [], moves: parsePgnText(l.pgn).map(m => m.san).slice(0, 10) }));
-}
-function clearTimers() { LS.timers.forEach(clearTimeout); LS.timers = []; }
-function later(fn, ms) { const tok = LS.tok; LS.timers.push(setTimeout(() => { if (LS.tok === tok) fn(); }, ms)); }
+const DUEL = duelCards();
+const RUN_LEN = 15, HEARTS = 3, NEW_PER_RUN = 5;
+const D = { view: "home", state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, want: null, last: null, shown: null, chip: null, caption: "", sub: "", comeback: [], recent: [], tok: 0, timers: [], t0: 0, T: 0, record: false };
+let duelBoard;
+const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+const cst = k => S.duel.cards[k] || (S.duel.cards[k] = { seen: false, ok: 0, box: 0, due: 0, last: 0 });
+const unlocked = k => { const p = DUEL.cards[k].parent; return !p || ((S.duel.cards[p] || {}).ok > 0); };
+const knownCount = () => DUEL.order.filter(k => (S.duel.cards[k] || {}).ok > 0).length;
+const dueKeys = () => { const now = Date.now(); return DUEL.order.filter(k => { const c = S.duel.cards[k]; return c && c.seen && c.due <= now; }); };
+function updateBadge() { const n = dueKeys().length; const b = $("#badge-learn"); if (b) { b.textContent = n; b.hidden = n === 0; } }
+function clearDuel() { D.tok++; D.timers.forEach(clearTimeout); D.timers = []; }
+function later(fn, ms) { const tok = D.tok; D.timers.push(setTimeout(() => { if (D.tok === tok) fn(); }, ms)); }
 
-function startLevel(lv, refresh) {
-  clearTimers(); LS.tok++;
-  Object.assign(LS, { view: "level", lv, refresh, phase: refresh || lv.mix ? "solo" : "watch", runs: buildRuns(lv), r: 0, slips: 0, combo: 0, best: 0, done: false, chip: null });
-  renderLearn(); startRun();
+function pickNext() {
+  const back = D.comeback.findIndex(c => c.at <= D.round);
+  if (back >= 0) return D.comeback.splice(back, 1)[0].key;
+  const fresh = k => !D.recent.slice(-2).includes(k) && !D.comeback.some(c => c.key === k);
+  const due = dueKeys().filter(fresh);
+  const brandNew = DUEL.order.filter(k => !(S.duel.cards[k] || {}).seen && unlocked(k));
+  if (brandNew.length && D.newOnes < NEW_PER_RUN && (!due.length || Math.random() < 0.4)) return brandNew[0];
+  if (due.length) { // prefer a different kind of White move than last round
+    const lastFam = D.card ? familyOf(D.card.sans) : null;
+    const other = due.filter(k => familyOf(DUEL.cards[k].sans) !== lastFam);
+    const pool = other.length ? other : due; return pool[Math.floor(Math.random() * pool.length)];
+  }
+  const known = DUEL.order.filter(k => (S.duel.cards[k] || {}).seen && fresh(k)).sort((a, b) => S.duel.cards[a].last - S.duel.cards[b].last);
+  if (known.length) return known[0];
+  return brandNew[0] || DUEL.order.filter(k => (S.duel.cards[k] || {}).seen)[0] || DUEL.order[0];
 }
+
 function startRun() {
-  clearTimers(); LS.tok++;
-  const run = LS.runs[LS.r]; const g = new Chess(); run.start.forEach(m => g.move(m));
-  Object.assign(LS, { g, i: 0, waiting: false, caption: LS.phase === "watch" ? "Watch." : LS.phase === "follow" ? "Copy the see-through piece." : "Your turn. No help this time.", sub: "", chip: null, last: null });
-  learnBoard.clearGhost();
-  learnBoard.set({ fen: g.fen(), orientation: "b", last: null });
-  renderLearnPanel();
-  later(stepRun, LS.phase === "watch" ? 700 : 600);
+  clearDuel();
+  Object.assign(D, { view: "run", state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, comeback: [], recent: [], record: false, chip: null, caption: "Get ready…", sub: "" });
+  renderLearn(); later(nextRound, 500);
 }
-function sansSoFar() { return [...LS.runs[LS.r].start, ...LS.runs[LS.r].moves.slice(0, LS.i)]; }
-function stepRun() {
-  const run = LS.runs[LS.r];
-  if (LS.i >= run.moves.length) { runDone(); return; }
-  const san = run.moves[LS.i]; const fen = LS.g.fen();
-  const mine = LS.g.turn() === "b";
-  const c = commentFor(fen, san);
-  if (!mine || LS.phase === "watch") {
-    const m = LS.g.move(san); LS.i++;
-    LS.last = { from: m.from, to: m.to };
-    learnBoard.set({ fen: LS.g.fen(), orientation: "b", last: LS.last, check: kingSq(LS.g), animate: { from: m.from, to: m.to } });
-    SND.play("move");
-    if (!mine) { const fam = familyOf(sansSoFar()); if (fam !== "start" && (!LS.chip || LS.chip.fam !== fam)) LS.chip = { fam, fresh: true }; }
-    LS.caption = mine ? describeMove(m) : describeTheirs(m, "White");
-    LS.sub = c;
-    renderLearnPanel(true);
-    later(stepRun, LS.phase === "watch" ? (mine ? 2300 : 1900) : 650);
+function quitRun() { clearDuel(); D.view = "home"; D.state = "idle"; renderLearn(); }
+
+async function zipTo(sans, tok) { // fast-forward the board to a position, from where it is if possible
+  let from = 0;
+  if (D.shown && D.shown.length <= sans.length && D.shown.every((s, i) => s === sans[i])) from = D.shown.length;
+  const g = new Chess(); sans.slice(0, from).forEach(m => g.move(m));
+  if (from === 0 && D.shown && D.shown.length) {
+    duelBoard.set({ fen: g.fen(), orientation: "b" });
+    if (duelBoard.el.animate && !duelBoard._reduced()) duelBoard.el.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 220, easing: "ease-out" });
+    await sleep(220);
+  }
+  const n = sans.length - from, ms = n ? Math.max(60, Math.min(150, 1100 / n)) : 0;
+  for (let i = from; i < sans.length; i++) {
+    if (tok !== D.tok) return;
+    const m = g.move(sans[i]);
+    duelBoard.set({ fen: g.fen(), orientation: "b", last: { from: m.from, to: m.to }, animate: { from: m.from, to: m.to, ms } });
+    await sleep(ms);
+  }
+  D.shown = sans.slice();
+}
+async function nextRound() {
+  if (D.hearts <= 0 || D.round >= RUN_LEN) { endRun(); return; }
+  D.round++; clearDuel(); const tok = D.tok;
+  const key = pickNext(), card = DUEL.cards[key], st = cst(key);
+  Object.assign(D, { key, card, isNew: !st.seen, state: "zip", chip: null, caption: "", sub: "" });
+  const t = $("#duel-timer"); if (t) t.classList.remove("run", "stop");
+  D.recent.push(key); D.comeback = D.comeback.filter(c => c.key !== key);
+  setTop(); renderHud(); renderDuelPanel();
+  await zipTo(card.sans.slice(0, -1), tok); if (tok !== D.tok) return;
+  await sleep(180); if (tok !== D.tok) return;
+  const g = new Chess(); card.sans.slice(0, -1).forEach(m => g.move(m)); const m = g.move(card.cue);
+  D.g = g; D.last = { from: m.from, to: m.to }; D.shown = card.sans.slice();
+  duelBoard.set({ fen: g.fen(), orientation: "b", last: D.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
+  SND.play("throw");
+  const fam = familyOf(card.sans); D.chip = fam !== "start" ? fam : null;
+  D.want = new Chess(g.fen()).move(card.main);
+  if (D.isNew) { D.state = "new"; showGhost(); D.caption = "New move. Copy it."; D.sub = shortComment(card.why); }
+  else { D.state = "go"; D.caption = "Your move!"; D.sub = ""; startTimer(); }
+  renderDuelPanel(true);
+}
+function showGhost() { duelBoard.ghost(D.want.from, D.want.to, "b" + D.want.piece.toUpperCase()); }
+function startTimer() {
+  const st = cst(D.key); D.T = Math.max(3, 8 - 1.5 * st.ok) * 1000; D.t0 = performance.now();
+  const t = $("#duel-timer"); if (t) { t.classList.remove("run", "stop"); t.style.setProperty("--T", D.T + "ms"); void t.offsetWidth; t.classList.add("run"); }
+  later(() => { if (D.state === "go") miss("slow"); }, D.T);
+}
+function stopTimer() { const t = $("#duel-timer"); if (t) t.classList.add("stop"); }
+function onDuelMove(mv) {
+  if (!["go", "new", "fix"].includes(D.state)) return;
+  if (D.state === "go") {
+    const san = D.card.answers.find(s => { const m = new Chess(D.g.fen()).move(s); return m && m.from === mv.from && m.to === mv.to; });
+    if (san) hit(san); else miss("wrong", mv);
     return;
   }
-  // Your move (follow or solo)
-  const m = new Chess(fen).move(san);
-  LS.want = m; LS.wantC = c; LS.waiting = true; LS.helped = false;
-  if (LS.phase === "follow") { learnBoard.ghost(m.from, m.to, "b" + m.piece.toUpperCase()); LS.caption = describeMove(m); LS.sub = c; }
-  else {
-    LS.caption = "Your move."; LS.sub = "";
-    later(() => { if (LS.waiting) { learnBoard.glow(m.from); LS.sub = "Try the glowing piece."; renderLearnPanel(); } }, 4500);
-    later(() => { if (LS.waiting) { LS.helped = true; learnBoard.ghost(m.from, m.to, "b" + m.piece.toUpperCase()); LS.caption = describeMove(m); LS.sub = c; renderLearnPanel(); } }, 9000);
-  }
-  renderLearnPanel(true);
+  if (mv.from === D.want.from && mv.to === D.want.to) { copied(); return; }
+  duelBoard.set({ fen: D.g.fen(), orientation: "b", last: D.last }); duelBoard.shake(mv.from); SND.play("bad"); showGhost();
 }
-function onLearnMove(mv) {
-  if (!LS.waiting) return;
-  const want = LS.want; const g = LS.g;
-  if (mv.from === want.from && mv.to === want.to) {
-    clearTimers(); LS.tok++;
-    const m = g.move(want.san); LS.i++; LS.waiting = false;
-    if (LS.helped && LS.phase === "solo") LS.slips++;
-    LS.combo = LS.helped ? 0 : LS.combo + 1; LS.best = Math.max(LS.best, LS.combo);
-    learnBoard.clearGhost();
-    LS.last = { from: m.from, to: m.to };
-    learnBoard.set({ fen: g.fen(), orientation: "b", last: LS.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
-    learnBoard.pop(m.to); SND.play("good");
-    LS.caption = "Yes!"; LS.sub = LS.wantC;
-    renderLearnPanel(true);
-    later(stepRun, 1200);
-  } else {
-    LS.combo = 0; LS.helped = true;
-    learnBoard.set({ fen: g.fen(), orientation: "b", last: LS.last });
-    learnBoard.shake(mv.from); SND.play("bad");
-    learnBoard.ghost(want.from, want.to, "b" + want.piece.toUpperCase());
-    LS.caption = "Not that one. Follow the see-through piece."; LS.sub = describeMove(want);
-    renderLearnPanel(true);
-  }
+function playAnswer(san) {
+  const m = D.g.move(san); duelBoard.clearGhost();
+  D.shown = [...D.card.sans, san];
+  duelBoard.set({ fen: D.g.fen(), orientation: "b", last: { from: m.from, to: m.to }, check: kingSq(D.g), animate: { from: m.from, to: m.to } });
+  duelBoard.pop(m.to);
 }
-function runDone() {
-  LS.waiting = false; learnBoard.clearGhost();
-  if (LS.r + 1 < LS.runs.length) { LS.r++; LS.caption = "Next one…"; LS.sub = ""; renderLearnPanel(true); later(startRun, 900); return; }
-  // Whole set done for this phase
-  if (LS.phase === "watch") { LS.caption = "That's the whole idea."; LS.sub = "Now you play it, with a see-through piece to copy."; LS.between = true; renderLearnPanel(true); return; }
-  if (LS.phase === "follow") { LS.caption = "Nice copying."; LS.sub = "Now from memory. If you pause, I'll help."; LS.between = true; renderLearnPanel(true); return; }
-  levelDone();
+function hit(san) {
+  stopTimer(); clearDuel();
+  const took = performance.now() - D.t0, frac = Math.max(0, 1 - took / D.T);
+  const st = cst(D.key); st.ok++; st.box = Math.min(st.box + 1, INTERVALS.length - 1); st.due = Date.now() + INTERVALS[st.box] * DAY - 3600000; st.last = Date.now();
+  D.combo++; D.bestCombo = Math.max(D.bestCombo, D.combo);
+  const pts = Math.round(50 + 50 * frac) * (1 + Math.floor(D.combo / 5)); D.score += pts; D.gain = pts;
+  playAnswer(san); SND.play(took < 1500 ? "fast" : "good");
+  D.state = "done"; D.caption = took < 1500 ? "Lightning!" : "Yes!"; D.sub = "";
+  save(); renderHud(true); renderDuelPanel(true);
+  later(nextRound, 800);
 }
-function nextPhase(ph) { LS.between = false; LS.phase = ph; LS.r = 0; LS.slips = 0; startRun(); }
-function levelDone() {
-  const st = lstate(LS.lv.id);
-  const stars = LS.slips === 0 ? 3 : LS.slips <= 2 ? 2 : 1;
-  const firstTime = !st.done;
-  st.stars = Math.max(st.stars, stars); st.done = true;
-  st.box = stars === 3 ? Math.min((firstTime ? 0 : st.box) + 1, INTERVALS.length - 1) : 1;
-  st.due = Date.now() + INTERVALS[st.box] * DAY - 3600000;
-  save(); updateBadge();
-  LS.done = true; LS.stars = stars; LS.caption = stars === 3 ? "Perfect!" : "Level done!";
-  LS.sub = stars === 3 ? "Every move from memory." : `You needed help ${LS.slips === 1 ? "once" : LS.slips + " times"}. It comes back tomorrow so it sticks.`;
-  SND.play("win"); renderLearnPanel(true);
+function miss(kind, mv) {
+  stopTimer(); clearDuel();
+  D.hearts--; D.combo = 0;
+  const st = cst(D.key); st.box = 0; st.due = Date.now(); st.last = Date.now();
+  D.comeback.push({ key: D.key, at: D.round + 3 });
+  duelBoard.set({ fen: D.g.fen(), orientation: "b", last: D.last });
+  if (mv) duelBoard.shake(mv.from);
+  SND.play("bad"); showGhost();
+  D.state = "fix"; D.caption = kind === "slow" ? "Too slow! Copy it." : "Not that one. Copy it."; D.sub = shortComment(D.card.why);
+  save(); renderHud(false, true); renderDuelPanel(true);
 }
-function quitLevel() { clearTimers(); LS.tok++; LS.view = "map"; LS.between = false; learnBoard && learnBoard.clearGhost(); renderLearn(); }
+function copied() {
+  const wasNew = D.state === "new"; const st = cst(D.key);
+  if (wasNew) { st.seen = true; st.due = Date.now(); st.last = Date.now(); D.newOnes++; D.comeback.push({ key: D.key, at: D.round + 2 }); save(); }
+  playAnswer(D.want.san); SND.play("good");
+  D.state = "done"; D.caption = wasNew ? "Got it. It'll come back." : "That's the one."; D.sub = "";
+  renderDuelPanel(true); later(nextRound, wasNew ? 1300 : 1000);
+}
+function endRun() {
+  clearDuel(); D.state = "over"; const t = $("#duel-timer"); if (t) t.hidden = true;
+  const best = S.duel.best || 0; D.record = D.score > best && S.duel.runs > 0;
+  S.duel.best = Math.max(best, D.score); S.duel.bestCombo = Math.max(S.duel.bestCombo || 0, D.bestCombo); S.duel.runs++;
+  save(); updateBadge(); SND.play(D.hearts > 0 ? "win" : "lose");
+  setTop(); renderHud(); renderDuelPanel(true);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && D.state === "go") { stopTimer(); clearDuel(); D.state = "paused"; renderDuelPanel(); }
+});
 
-function starsHTML(n) { return `<span class="stars" aria-label="${n} of 3 stars">${[1, 2, 3].map(k => `<i class="${k <= n ? "on" : ""}"></i>`).join("")}</span>`; }
 function renderLearn() {
   const v = $("#view-learn"); if (!v) return;
   setTop();
-  if (LS.view === "map") {
-    const up = nextUp(); const doneN = PATH.filter(l => lstate(l.id).done).length;
-    v.innerHTML = `${doneN === 0 ? `<p class="intro">When White starts with the pawn to e4, you answer with the Caro-Kann. Nine short levels: watch the moves, copy them, then play them yourself.</p>` : ""}
-      <button class="btn primary wide go" id="learn-go">${up.refresh ? "Refresh" : doneN ? "Continue" : "Start"}: ${esc(up.lv.title)}</button>
-      <ol class="path">${PATH.map((l, k) => { const s = lstate(l.id); const open = levelUnlocked(k); const due = s.done && s.due <= Date.now(); const fam = FAMILIES[l.family];
-        return `<li><button class="node ${s.done ? "done" : ""} ${open ? "" : "locked"} ${due ? "due" : ""}" data-lv="${k}" ${open ? "" : "disabled"} style="--fam:${fam.color}">
-          <span class="dot" aria-hidden="true">${s.done ? "" : open ? k + 1 : ""}</span>
-          <span class="txt"><b>${esc(l.title)}</b><span>${esc(l.sub)}</span></span>
-          ${s.done ? (due ? `<span class="tag">Refresh</span>` : starsHTML(s.stars)) : open ? "" : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Locked"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`}
-        </button></li>`; }).join("")}</ol>`;
-    v.querySelector("#learn-go").onclick = () => startLevel(up.lv, up.refresh);
-    v.querySelectorAll("[data-lv]").forEach(b => b.onclick = () => { const l = PATH[+b.dataset.lv]; const s = lstate(l.id); startLevel(l, s.done && s.due <= Date.now()); });
-    learnBoard = null;
-    return;
-  }
-  v.innerHTML = `<div class="live"><div class="main"><div class="bar"><div class="phases" id="phases"></div><button class="icon-btn" id="learn-quit" aria-label="Back to levels">${ICONS.close}</button></div><div id="learn-board"></div></div><div class="side"><div class="coach" id="learn-panel" aria-live="polite"></div></div></div>`;
-  learnBoard = new Board(v.querySelector("#learn-board"), { interactive: () => LS.waiting, onMove: m => onLearnMove(m) });
-  learnBoard.set({ fen: (LS.g || new Chess()).fen(), orientation: "b" });
-  v.querySelector("#learn-quit").onclick = quitLevel;
+  const run = D.view === "run";
+  v.innerHTML = `<div class="live"><div class="main">
+      ${run ? `<div class="hud"><span class="hearts" id="hearts"></span><span class="score" id="score"></span><button class="icon-btn" id="duel-quit" aria-label="Stop this run">${ICONS.close}</button></div>` : ""}
+      <div id="duel-board"></div>
+      ${run ? `<div class="timer" id="duel-timer"><i></i></div>` : ""}
+    </div><div class="side"><div class="coach" id="duel-panel" aria-live="polite"></div></div></div>`;
+  duelBoard = new Board(v.querySelector("#duel-board"), { coords: false, interactive: () => ["go", "new", "fix"].includes(D.state), onMove: m => onDuelMove(m) });
+  if (run && D.g) duelBoard.set({ fen: D.g.fen(), orientation: "b", last: D.last });
+  else { duelBoard.set({ fen: new Chess().fen(), orientation: "b" }); D.shown = []; }
+  if (run) { v.querySelector("#duel-quit").onclick = quitRun; renderHud(); }
+  renderDuelPanel();
 }
-function renderLearnPanel(anim) {
-  const p = $("#learn-panel"); if (!p) return;
-  const ph = $("#phases");
-  if (ph) { const steps = LS.refresh || LS.lv.mix ? ["solo"] : ["watch", "follow", "solo"]; const names = { watch: "Watch", follow: "Copy", solo: "Solo" };
-    ph.innerHTML = steps.map(s => `<span class="${s === LS.phase ? "on" : steps.indexOf(s) < steps.indexOf(LS.phase) ? "past" : ""}">${names[s]}</span>`).join(""); }
-  let h = "";
-  if (LS.chip) { const f = FAMILIES[LS.chip.fam]; h += `<p class="chip ${LS.chip.fresh ? "enter" : ""}" style="--fam:${f.color}">${esc(f.name)}</p>`; LS.chip.fresh = false; }
-  h += `<p class="cap ${anim ? "enter" : ""}">${esc(LS.caption)}</p>`;
-  if (LS.sub) h += `<p class="capsub ${anim ? "enter" : ""}">${esc(LS.sub)}</p>`;
-  if (LS.done) {
-    h += `<div class="won enter">${starsHTML(LS.stars)}</div><div class="actions"><button class="btn primary" data-l="next">Next</button><button class="btn soft" data-l="again">Play again</button></div>`;
-  } else if (LS.between) {
-    h += `<div class="actions">${LS.phase === "watch" ? `<button class="btn soft" data-l="rewatch">Watch again</button><button class="btn primary" data-l="follow">My turn</button>` : `<button class="btn primary" data-l="solo">Go</button>`}</div>`;
-  } else if (LS.phase === "watch") {
-    h += `<div class="actions"><button class="link" data-l="skip">Skip the clip</button></div>`;
+function renderHud(bump, hurt) {
+  const h = $("#hearts"); if (!h) return;
+  h.innerHTML = Array.from({ length: HEARTS }, (_, i) => `<i class="heart ${i < D.hearts ? "" : "lost"} ${hurt && i === D.hearts ? "hurt" : ""}">${HEART}</i>`).join("");
+  const s = $("#score"); s.textContent = D.score.toLocaleString();
+  if (bump && s.animate && !duelBoard._reduced()) s.animate([{ transform: "scale(1.25)" }, { transform: "scale(1)" }], { duration: 260, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+}
+function renderDuelPanel(anim) {
+  const p = $("#duel-panel"); if (!p) return;
+  const enter = anim ? "enter" : "";
+  if (D.view === "home") {
+    const k = knownCount(), n = DUEL.order.length, due = dueKeys().length;
+    p.innerHTML = `${S.duel.runs ? "" : `<p class="cap">White moves. You answer before time runs out.</p><p class="capsub">Every new answer is shown to you once. After that, it's up to you.</p>`}
+      <div class="actions"><button class="btn primary go" data-d="start">${S.duel.runs ? "Play a run" : "Start"}</button></div>
+      ${S.duel.runs ? `<div class="known"><div class="meter"><i style="width:${Math.round(k / n * 100)}%"></i></div><p>You know <b>${k}</b> of ${n} answers${due ? `. <b>${due}</b> ready to practice.` : "."}</p>${S.duel.best ? `<p>Best score <b>${S.duel.best.toLocaleString()}</b></p>` : ""}</div>` : ""}`;
+  } else if (D.state === "over") {
+    const won = D.hearts > 0;
+    p.innerHTML = `<p class="cap ${enter}">${won ? "Run complete!" : "Out of hearts"}</p>
+      <p class="big-score ${enter}">${D.score.toLocaleString()}</p>
+      ${D.record ? `<p class="record ${enter}">New best score</p>` : ""}
+      <p class="capsub">Best combo ${D.bestCombo}. New answers ${D.newOnes}. You know ${knownCount()} of ${DUEL.order.length}.</p>
+      <div class="actions"><button class="btn primary" data-d="start">Play again</button><button class="btn soft" data-d="home">Done</button></div>`;
+  } else if (D.state === "paused") {
+    p.innerHTML = `<p class="cap">Paused</p><div class="actions"><button class="btn primary" data-d="resume">Keep going</button></div>`;
+  } else {
+    let h = "";
+    if (D.chip) { const f = FAMILIES[D.chip]; h += `<p class="chip" style="--fam:${f.color}">${esc(f.name)}</p>`; }
+    if (D.caption) h += `<p class="cap ${enter} ${D.state === "fix" ? "warn" : ""}">${esc(D.caption)}</p>`;
+    if (D.sub) h += `<p class="capsub ${enter}">${esc(D.sub)}</p>`;
+    if (D.state === "done" && D.gain && D.caption !== "That's the one." && !D.caption.startsWith("Got it")) h += `<p class="gain ${enter}">+${D.gain}${D.combo >= 3 ? ` <span>combo ${D.combo}</span>` : ""}</p>`;
+    p.innerHTML = h;
   }
-  if (LS.phase !== "watch" && LS.combo >= 2 && !LS.done) h += `<p class="combo">${LS.combo} in a row</p>`;
-  p.innerHTML = h;
-  p.querySelectorAll("[data-l]").forEach(b => b.onclick = () => {
-    const a = b.dataset.l;
-    if (a === "follow") nextPhase("follow");
-    if (a === "solo") nextPhase("solo");
-    if (a === "rewatch") nextPhase("watch");
-    if (a === "skip") { clearTimers(); LS.tok++; LS.between = true; LS.caption = "That's the whole idea."; LS.sub = "Now you play it, with a see-through piece to copy."; renderLearnPanel(true); }
-    if (a === "again") startLevel(LS.lv, false);
-    if (a === "next") { const up = nextUp(); startLevel(up.lv, up.refresh); }
+  p.querySelectorAll("[data-d]").forEach(b => b.onclick = () => {
+    const a = b.dataset.d;
+    if (a === "start") startRun();
+    if (a === "home") quitRun();
+    if (a === "resume") { D.state = "go"; D.caption = "Your move!"; renderDuelPanel(); startTimer(); }
   });
 }
 
@@ -936,7 +970,7 @@ function wire() {
   window.addEventListener("hashchange", () => showView(currentView()));
 }
 function boot() {
-  S.opening = "caro"; ["deck", "lines", "newLines", "newDay", "plan", "pause"].forEach(k => delete S[k]); save();
+  S.opening = "caro"; ["deck", "lines", "newLines", "newDay", "plan", "pause", "learn"].forEach(k => delete S[k]); S.duel = Object.assign({ cards: {}, best: 0, bestCombo: 0, runs: 0 }, S.duel); save();
   wire(); updateBadge(); showView(currentView());
   renderPlayBoard(); renderCoach();
   connectPlatform();

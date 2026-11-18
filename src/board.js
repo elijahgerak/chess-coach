@@ -42,12 +42,12 @@ class Board {
         const img = document.createElement("img");
         img.src = PIECES[p.color + p.type.toUpperCase()]; img.alt = ""; img.draggable = false;
         d.appendChild(img);
-        if (anim && anim.to === sq) this._glide(img, anim.from, anim.to);
+        if (anim && anim.to === sq) this._glide(img, anim.from, anim.to, anim.ms);
       }
       const showFile = this.orientation === "w" ? r === 1 : r === 8;
       const showRank = this.orientation === "w" ? f === 0 : f === 7;
-      if (showFile) { const s = document.createElement("span"); s.className = "cf"; s.textContent = sq[0]; d.appendChild(s); }
-      if (showRank) { const s = document.createElement("span"); s.className = "cr"; s.textContent = sq[1]; d.appendChild(s); }
+      if (showFile && this.opts.coords !== false) { const s = document.createElement("span"); s.className = "cf"; s.textContent = sq[0]; d.appendChild(s); }
+      if (showRank && this.opts.coords !== false) { const s = document.createElement("span"); s.className = "cr"; s.textContent = sq[1]; d.appendChild(s); }
     }
     this._drawArrows();
     if (this._ghost && this._ghostTo) { const t = this.grid.querySelector(`[data-sq="${this._ghostTo}"]`); if (t) t.classList.add("target"); }
@@ -58,7 +58,7 @@ class Board {
     const [ff, fr] = sqFR(from), [tf, tr] = sqFR(to); const dir = this.orientation === "w" ? 1 : -1;
     return [(ff - tf) * 100 * dir, (tr - fr) * 100 * dir];
   }
-  _glide(img, from, to) {
+  _glide(img, from, to, ms) {
     if (this._reduced() || !img.animate) return;
     const [dx, dy] = this._offset(from, to);
     img.style.zIndex = 5;
@@ -66,7 +66,7 @@ class Board {
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
       { transform: `translate(${dx * 0.45}%, ${dy * 0.45}%) scale(1.12)`, filter: "drop-shadow(0 10px 8px rgba(0,0,0,.28))", offset: 0.5 },
       { transform: "translate(0, 0) scale(1)", filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
-    ], { duration: 360, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+    ], { duration: ms || 360, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
     a.onfinish = () => { img.style.zIndex = ""; };
   }
   _cellBox(sq) {

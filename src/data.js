@@ -35,7 +35,7 @@ Be7 {Get your pieces out and castle. Later, push c5.}
       { name: "Classical via 3.Nd2", weight: 2, pgn: `
 1.e4 c6 2.d4 d5
 3.Nd2 {Same idea as Nc3: protect e4.}
-dxe4
+dxe4 {Take it, same as against the other knight.}
 4.Nxe4
 Bf5 {Same as the main line. Bishop out first.}
 5.Ng3 Bg6 6.N1e2 {White brings the other knight over to chase your bishop.}
@@ -54,7 +54,7 @@ c5 {Attack the pawn on d4. It holds up White's pawn on e5.}
 6.O-O {White castles.}
 Nc6 {Attack d4 again.}
 7.c3
-cxd4
+cxd4 {Swap pawns. Afterward, no pawn can protect White's d4 pawn.}
 8.cxd4
 Nge7 {Bring out your last knight. Next: bishop to e7, castle, rook to c8.}
 ` },
@@ -68,9 +68,9 @@ e6 {Your bishop is out, so e6 is fine now.}
       { name: "Advance: 4.Nc3 and g4", weight: 1, pgn: `
 1.e4 c6 2.d4 d5 3.e5 Bf5
 4.Nc3
-e6
+e6 {Close the wall. Your bishop is already out.}
 5.g4 {White chases your bishop with pawns.}
-Bg6
+Bg6 {Step back. Your bishop stays outside the wall.}
 6.Nge2
 c5 {When White attacks on the side, hit the middle. Attack d4.}
 ` },
@@ -79,7 +79,7 @@ c5 {When White attacks on the side, hit the middle. Attack d4.}
 4.Bd3 {White offers to swap bishops.}
 Bxd3 {Swap. White's good bishop is gone.}
 5.Qxd3
-e6
+e6 {Close the wall. Nothing is stuck behind it.}
 6.Nf3
 c5 {Attack d4. It holds up the pawn on e5.}
 ` },
@@ -96,11 +96,11 @@ Bg4 {Bishop out before e6, like always.}
 7.Qb3 {White's queen attacks your pawn on b7.}
 Qd7 {Protect b7. Stay calm.}
 8.Nd2
-e6
+e6 {Close the wall. Your bishop is already out.}
 9.Ngf3
 Bd6 {Offer to swap off White's strong bishop on f4.}
 10.Bxd6
-Qxd6
+Qxd6 {Take back with the queen.}
 11.O-O
 O-O {Next: push your b-pawn up to attack White's pawn on c3.}
 ` },
@@ -117,7 +117,7 @@ Nxd5 {Take back with the knight. On d5 it sits right in front of White's d4 pawn
 8.Bd3
 Nc6 {Attack d4.}
 9.O-O
-O-O
+O-O {Castle. Your king is safe now.}
 10.Re1
 Bf6 {Attack d4 a third time. Swapping pieces helps you here.}
 ` },
@@ -128,11 +128,11 @@ d5 {Put your pawn in the middle anyway.}
 3.Nf3 {White brings out the other knight.}
 Bg4 {Attack the knight. You're happy to swap your bishop for it.}
 4.h3
-Bxf3
+Bxf3 {Take the knight instead of stepping back.}
 5.Qxf3
 e6 {Your bishop is gone, so e6 is fine. Your pawns are solid.}
 6.d3
-Nf6
+Nf6 {Knight out. It guards your king's side.}
 7.Bd2
 Nbd7 {Just bring out pieces. Next a bishop out, then castle.}
 ` },
@@ -212,8 +212,7 @@ const TRAPS = [
   { moves: "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Nd7 Qe2", san: "Ngf6", note: "Now White's knight jumps to d6 and it's checkmate. Your e7 pawn can't take it.", rule: "Before every move, look at every check your opponent could give." },
 ];
 
-// ===== Learn: the level path. Each level is a short run of moves you learn by watching, copying, then playing alone.
-// "family" colors White's choice so you link each kind of White move to your answer.
+// ===== Learn (reflex duel): each kind of White move gets a color, so you link White's choice to your answer.
 const FAMILIES = {
   start: { name: "Start", color: "#5b6b62" },
   protect: { name: "White protects", color: "#2f9e5b" },
@@ -221,25 +220,8 @@ const FAMILIES = {
   swap: { name: "White swaps", color: "#2f7fd1" },
   attack: { name: "White attacks d5", color: "#7a5ae0" },
   rare: { name: "Rare tries", color: "#d14f8a" },
-  mix: { name: "Everything", color: "#121513" },
 };
-const PATH = [
-  { id: "start", family: "start", title: "The first moves", sub: "White grabs the middle. You answer.", runs: [{ start: "", moves: "e4 c6 d4 d5" }] },
-  { id: "protect", family: "protect", title: "White protects e4", sub: "Take the pawn, then bring your bishop out.", runs: [{ start: "e4 c6 d4 d5", moves: "Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6" }] },
-  { id: "escape", family: "protect", title: "Keep your bishop safe", sub: "White chases it with pawns.", runs: [{ start: "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6", moves: "h4 h6 Nf3 Nd7 h5 Bh7" }] },
-  { id: "finish", family: "protect", title: "Finish the main line", sub: "Swap bishops, then build your wall.", runs: [{ start: "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7", moves: "Bd3 Bxd3 Qxd3 e6 Bd2 Ngf6 O-O-O Be7" }] },
-  { id: "push", family: "push", title: "White pushes to e5", sub: "Bishop out, then attack the pawn on d4.", runs: [{ start: "e4 c6 d4 d5", moves: "e5 Bf5 Nf3 e6 Be2 c5 O-O Nc6" }] },
-  { id: "swap", family: "swap", title: "White swaps on d5", sub: "Take back toward the middle.", runs: [{ start: "e4 c6 d4 d5", moves: "exd5 cxd5 Bd3 Nc6 c3 Nf6 Bf4 Bg4" }] },
-  { id: "attack", family: "attack", title: "White attacks with c4", sub: "Park your knight on d5.", runs: [{ start: "e4 c6 d4 d5 exd5 cxd5", moves: "c4 Nf6 Nc3 e6 Nf3 Be7 cxd5 Nxd5" }] },
-  { id: "rare", family: "rare", title: "Surprise moves", sub: "Short answers to rare tries.", runs: [
-    { start: "e4 c6 d4 d5 e5 Bf5", moves: "h4 h5" },
-    { start: "e4 c6 d4 d5 e5 Bf5", moves: "Bd3 Bxd3" },
-    { start: "e4 c6 d4 d5", moves: "f3 e6" },
-    { start: "e4 c6", moves: "Nc3 d5 Nf3 Bg4" },
-  ] },
-  { id: "boss", family: "mix", title: "Anything White plays", sub: "A mix of everything. Answer each one.", mix: true },
-];
-// White's choice → family, so the boss level can flash the right color
+// White's choice → family, so the duel can flash the right color
 function familyOf(sans) {
   const s = sans.join(" ");
   if (s.startsWith("e4 c6 Nc3")) return "rare";

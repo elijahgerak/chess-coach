@@ -1,7 +1,7 @@
 """UI smoke test: builds, serves site/, opens it in headless Chrome and plays like a beginner.
 
-Learn: starts level 1, watches the clip, copies the ghost, plays it solo, checks the stars.
-Then level 2 with one wrong move (it should shake and show the ghost). Then Play: 1...c6 and the coach asks for a move.
+Learn (reflex duel): plays a full run. Copies new answers, answers known ones, makes one wrong move
+(should cost a heart and show the ghost), lets one timer run out (should say "Too slow"). Then Play: 1...c6.
 
 Needs: pip install playwright && playwright install chromium   (or pass CHROME=/path/to/chrome)
 Run:   python3 tests/smoke.py        Screenshots land in tests/screens/
@@ -21,17 +21,9 @@ def serve():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
-async def wait_turn(page, timeout=30000):
-    await page.wait_for_function("() => LS.waiting || LS.between || LS.done", timeout=timeout)
-
-async def play_wanted(page):
-    """Play every move the level asks for until the phase ends."""
-    while True:
-        await wait_turn(page)
-        if await page.evaluate("() => LS.between || LS.done"):
-            return
-        await page.evaluate("() => onLearnMove({from: LS.want.from, to: LS.want.to})")
-        await page.wait_for_timeout(300)
+async def wait_state(page, states, timeout=30000):
+    await page.wait_for_function(f"() => {states!r}.includes(D.state)", timeout=timeout)
+    return await page.evaluate("() => D.state")
 
 async def main():
     subprocess.run([sys.executable, os.path.join(ROOT, "build.py")], check=True)
@@ -46,45 +38,42 @@ async def main():
         if os.path.exists(CHESS):  # use the local chess.js so the test works offline
             await page.route("https://cdnjs.cloudflare.com/**", lambda r: r.fulfill(path=CHESS, content_type="text/javascript"))
         await page.goto(url); await page.wait_for_timeout(800)
-        await page.screenshot(path=os.path.join(OUT, "1-path.png"))
+        await page.screenshot(path=os.path.join(OUT, "1-home.png"))
 
-        # Level 1: watch, copy, solo
-        await page.click("#learn-go"); await page.wait_for_timeout(2600)
-        await page.screenshot(path=os.path.join(OUT, "2-watch.png"))
-        await page.wait_for_function("() => LS.between", timeout=30000)
-        await page.click('[data-l="follow"]'); await wait_turn(page); await page.wait_for_timeout(900)
-        await page.screenshot(path=os.path.join(OUT, "3-copy-ghost.png"))
-        await play_wanted(page)
-        await page.click('[data-l="solo"]'); await play_wanted(page)
-        await page.wait_for_timeout(700)
-        await page.screenshot(path=os.path.join(OUT, "4-stars.png"))
-        if await page.evaluate("() => S.learn.start.stars") != 3: fails.append("level 1 should give 3 stars")
-
-        # Level 2: one wrong move in Copy
-        await page.click('[data-l="next"]'); await page.wait_for_timeout(300)
-        await page.click('[data-l="skip"]')
-        await page.click('[data-l="follow"]'); await wait_turn(page)
-        await page.evaluate("() => onLearnMove({from: 'a7', to: 'a6'})"); await page.wait_for_timeout(250)
-        await page.screenshot(path=os.path.join(OUT, "5-wrong.png"))
-        if "Not that one" not in await page.inner_text("#learn-panel"): fails.append("wrong move should say 'Not that one'")
-        await play_wanted(page)
-        await page.click('[data-l="solo"]'); await wait_turn(page)
-        await page.wait_for_timeout(10000)  # pause: the piece glows, then the ghost comes back
-        await page.screenshot(path=os.path.join(OUT, "6-solo-help.png"))
-        if not await page.evaluate("() => LS.helped"): fails.append("solo help didn't appear after a pause")
-        await play_wanted(page)
-        if await page.evaluate("() => S.learn.protect.stars") != 2: fails.append("one help in solo should give 2 stars")
-
-        # Back to the path
-        await page.click("#learn-quit"); await page.wait_for_timeout(400)
-        await page.screenshot(path=os.path.join(OUT, "7-path-after.png"))
-
-        # Boss level runs with a color chip
-        await page.evaluate("() => startLevel(PATH[PATH.length - 1], false)"); await wait_turn(page)
-        await page.screenshot(path=os.path.join(OUT, "8-boss.png"))
+        # A full run
+        await page.click('[data-d="start"]')
+        shots = {"new": "2-new-ghost.png", "go": "3-your-move.png"}
+        wrong_done = slow_done = False
+        while True:
+            st = await wait_state(page, ["new", "go", "fix", "over"])
+            if st == "over": break
+            await page.wait_for_timeout(450)
+            if st in shots:
+                await page.screenshot(path=os.path.join(OUT, shots.pop(st)))
+            if st == "go" and not wrong_done and await page.evaluate("() => D.round") >= 3:
+                wrong_done = True; hearts = await page.evaluate("() => D.hearts")
+                await page.evaluate("() => { const g = new Chess(D.g.fen()); const m = g.moves({verbose: true}).find(m => !D.card.answers.includes(m.san)); onDuelMove({from: m.from, to: m.to}); }")
+                await page.wait_for_timeout(300)
+                await page.screenshot(path=os.path.join(OUT, "4-wrong.png"))
+                if await page.evaluate("() => D.hearts") != hearts - 1: fails.append("a wrong move should cost a heart")
+                if "Not that one" not in await page.inner_text("#duel-panel"): fails.append("wrong move should say 'Not that one'")
+                continue
+            if st == "go" and wrong_done and not slow_done:
+                slow_done = True
+                await wait_state(page, ["fix"], timeout=12000)
+                if "Too slow" not in await page.inner_text("#duel-panel"): fails.append("timeout should say 'Too slow'")
+                continue
+            await page.evaluate("() => onDuelMove({from: D.want.from, to: D.want.to})")
+            await page.wait_for_timeout(200)
+            if st == "go" and await page.evaluate("() => D.state") != "done": fails.append("right answer wasn't accepted")
+        await page.wait_for_timeout(500)
+        await page.screenshot(path=os.path.join(OUT, "5-run-over.png"))
+        if await page.evaluate("() => D.round") != 15: fails.append(f"run should last 15 rounds, got {await page.evaluate('() => D.round')}")
+        if await page.evaluate("() => knownCount()") < 2: fails.append("should know at least 2 answers after a run")
+        await page.click('[data-d="home"]'); await page.wait_for_timeout(300)
+        await page.screenshot(path=os.path.join(OUT, "6-home-after.png"))
 
         # Play still works
-        await page.evaluate("() => quitLevel()")
         await page.click('.tab[data-v="play"]'); await page.wait_for_timeout(3500)
         await page.evaluate('() => onUserMove({from: "c7", to: "c6"})'); await page.wait_for_timeout(6000)
         await page.screenshot(path=os.path.join(OUT, "9-play.png"))
@@ -92,7 +81,7 @@ async def main():
         if "Your move" not in coach: fails.append(f"play coach: {coach[:100]!r}")
         await b.close()
     if errors: fails.append(f"errors: {errors}")
-    print("ok | learn levels + play work" if not fails else "FAIL | " + " ; ".join(fails))
+    print("ok | duel run + play work" if not fails else "FAIL | " + " ; ".join(fails))
     sys.exit(0 if not fails else 1)
 
 if __name__ == "__main__":
