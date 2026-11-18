@@ -1,4 +1,4 @@
-"""UI smoke test: builds, serves site/, opens it in headless Chrome, plays 1...c6, checks the coach answers.
+"""UI smoke test: builds, serves site/, opens it in headless Chrome, plays 1...c6, checks the next-move card appears.
 
 Needs: pip install playwright && playwright install chromium   (or pass CHROME=/path/to/chrome)
 Run:   python3 tests/smoke.py        Screenshots land in tests/screens/
@@ -30,11 +30,11 @@ async def main():
         await page.goto(url); await page.wait_for_timeout(1000)
         await page.screenshot(path=os.path.join(OUT, "1-chooser.png"))
         await page.click('[data-open="caro"]'); await page.wait_for_timeout(3500)
-        await page.evaluate('() => onUserMove({from: "c7", to: "c6"})'); await page.wait_for_timeout(5000)
+        await page.evaluate('() => onUserMove({from: "c7", to: "c6"})'); await page.wait_for_timeout(6000)
         await page.screenshot(path=os.path.join(OUT, "2-after-c6.png"))
         coach = await page.inner_text("#coach")
         await b.close()
-    ok = "Book move" in coach and not errors
+    ok = ("Move your" in coach or "Take the" in coach or "Castle" in coach) and not errors
     print("ok" if ok else "FAIL", "| engine + coach responded" if ok else f"| coach: {coach[:120]!r} errors: {errors}")
     sys.exit(0 if ok else 1)
 
