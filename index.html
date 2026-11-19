@@ -2029,7 +2029,7 @@ async function zipTo(sans, tok) { // fast-forward the board to a position, from 
     if (duelBoard.el.animate && !duelBoard._reduced()) duelBoard.el.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 220, easing: "ease-out" });
     await sleep(220);
   }
-  const n = sans.length - from, ms = n ? Math.max(60, Math.min(150, 1100 / n)) : 0; // the whole replay takes about a second
+  const ms = 60; // every replayed move at the same speed: very fast, still easy to follow
   for (let i = from; i < sans.length; i++) {
     if (tok !== D.tok) return;
     const m = g.move(sans[i]);
