@@ -84,14 +84,21 @@ async def main():
         if await page.evaluate("() => S.duel.progress.first.clears") != 1: fails.append("running out of hearts shouldn't count")
         if "Out of hearts" not in await page.inner_text("#duel-panel"): fails.append("should say 'Out of hearts'")
 
-        # Run 2 opens after 5 clears; run 1 stays open
+        # One run at a time; run 2 opens after 3 clears; run 1 stays reachable
         await page.click('[data-d="home"]'); await page.wait_for_timeout(200)
-        if not await page.evaluate("() => document.querySelector('[data-run=\"1\"].run-row').disabled"): fails.append("run 2 should be locked before 5 clears")
-        await page.evaluate("() => { S.duel.progress.first.clears = 5; renderLearn(); }"); await page.wait_for_timeout(200)
-        if await page.evaluate("() => document.querySelector('[data-run=\"1\"].run-row').disabled"): fails.append("run 2 should open after 5 clears")
-        if await page.evaluate("() => document.querySelector('[data-run=\"0\"].run-row').disabled"): fails.append("run 1 should stay open")
-        if "White protects" not in await page.inner_text(".btn.go"): fails.append("the big button should move on to run 2")
+        if "White's first moves" not in await page.inner_text(".run-card"): fails.append("home should show run 1 before 3 clears")
+        if await page.locator("[data-step]").count(): fails.append("no arrows while only one run is open")
+        await page.evaluate("() => { S.duel.progress.first.clears = 3; D.pick = null; renderLearn(); }"); await page.wait_for_timeout(200)
+        if "White protects" not in await page.inner_text(".run-card"): fails.append("home should move on to run 2 after 3 clears")
+        await page.click('[data-step="0"]'); await page.wait_for_timeout(150)
+        if "White's first moves" not in await page.inner_text(".run-card"): fails.append("'Earlier run' should go back to run 1")
+        await page.click('[data-step="1"]'); await page.wait_for_timeout(150)
         await page.screenshot(path=os.path.join(OUT, "6-home-after.png"))
+
+        # Reset history wipes progress
+        await page.click("#open-settings"); await page.wait_for_timeout(300)
+        await page.click("#reset"); await page.click("#reset"); await page.wait_for_timeout(1500)
+        if await page.evaluate("() => Object.values(S.duel.progress).some(p => p.clears) || S.duel.played"): fails.append("reset should erase progress")
 
         # Play still works
         await page.click('.tab[data-v="play"]'); await page.wait_for_timeout(3500)

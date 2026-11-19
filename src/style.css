@@ -270,22 +270,17 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 0; }
 .big-score { font-size: 64px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
 .record { font-weight: 600; color: #c99700; }
 .duel-home { display: flex; flex-direction: column; gap: 14px; padding-top: 8px; width: 100%; max-width: 560px; }
-.runs { list-style: none; margin: 6px 0 0; padding: 0; background: var(--raised); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
-.runs li + li { border-top: 1px solid var(--rule); }
-.run-row { width: 100%; border: 0; background: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; text-align: left; transition: background .15s var(--ease-out); }
-.run-row:active { background: var(--paper); }
-.run-row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.run-row .txt b { font-weight: 600; font-size: 16px; letter-spacing: -0.01em; }
-.run-row .txt span { color: var(--ink-2); font-size: 14px; }
-.run-row.locked { cursor: default; }
-.run-row.locked .txt { opacity: .45; }
-.run-row svg { color: var(--ink-2); flex: none; }
+.run-card { background: var(--raised); border-radius: 22px; box-shadow: var(--shadow); padding: 24px 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+.run-name { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+.run-card .over-pips { margin: 6px 0 10px; }
+.run-nav { display: flex; justify-content: space-between; }
+.run-nav .link:disabled { opacity: .3; cursor: default; }
+.btn.danger { color: var(--t-worse); }
 .pips { display: flex; gap: 5px; flex: none; }
 .pips i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); }
 .pips i.on { background: var(--fam); }
 .pips i.new { animation: pip .45s var(--ease-out) .15s both; }
 @keyframes pip { from { transform: scale(2.2); opacity: 0; } }
-.best { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; flex: none; }
 .over-pips { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 .over-pips .pips { gap: 7px; }
 .over-pips .pips i { width: 16px; height: 16px; }
