@@ -89,7 +89,7 @@ class Board {
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0.75, offset: 0.78 },
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0, offset: 0.92 },
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0 },
-    ], { duration: 1100, iterations: Infinity, easing: "linear" });
+    ], { duration: 1800, iterations: Infinity, easing: "linear" });
   }
   clearGhost() {
     if (this._ghost) { this._ghost.remove(); this._ghost = null; }
