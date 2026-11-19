@@ -1,5 +1,4 @@
 // ================= Small helpers =================
-const LOGO_SVG = `/*LOGOSVG*/`;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));

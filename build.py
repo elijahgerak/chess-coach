@@ -27,7 +27,7 @@ def sized(svg, n, uid):
 
 def page():
     logo = read(BRAND, "logo.svg")
-    js = "\n".join(read(SRC, f) for f in JS_ORDER).replace("/*LOGOSVG*/", logo)
+    js = "\n".join(read(SRC, f) for f in JS_ORDER)
     js += '\nif (window.Chess) boot(); else document.body.insertAdjacentHTML("afterbegin", "<p style=\\"padding:24px\\">Couldn\'t load the chess rules library. Check your connection and reload.</p>");\n'
     return (read(SRC, "index.template.html")
             .replace("/*CSS*/", read(SRC, "style.css"))
@@ -58,7 +58,7 @@ def main():
     shutil.copy(os.path.join(BRAND, "sq-512.png"), os.path.join(SITE, "icon-512.png"))
     with open(os.path.join(SITE, "manifest.webmanifest"), "w") as f:
         json.dump({"name": "Caro-Kann Coach", "short_name": "Chess Coach", "start_url": "./", "display": "standalone",
-                   "background_color": "#f3f4f1", "theme_color": "#f3f4f1",
+                   "background_color": "#000000", "theme_color": "#f3f4f1",
                    "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
                              {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]}, f, indent=1)
     site_html = html.replace('<link rel="apple-touch-icon" href="apple-touch-icon.png">', "\n".join([
