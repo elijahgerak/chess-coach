@@ -1323,7 +1323,7 @@ class Board {
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0.75, offset: 0.78 },
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0, offset: 0.92 },
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, opacity: 0 },
-    ], { duration: 1100, iterations: Infinity, easing: "linear" });
+    ], { duration: 1800, iterations: Infinity, easing: "linear" });
   }
   clearGhost() {
     if (this._ghost) { this._ghost.remove(); this._ghost = null; }
@@ -2016,7 +2016,7 @@ function buildQueue(run) {
 function startRun(run) {
   clearDuel();
   Object.assign(D, { view: "run", run, queue: buildQueue(run), state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, record: false, cleared: false, opened: null, chip: null, caption: "", sub: "" });
-  renderLearn(); later(nextRound, 200);
+  renderLearn(); later(nextRound, 500);
 }
 function quitRun() { clearDuel(); D.view = "home"; D.state = "idle"; renderLearn(); }
 
@@ -2026,10 +2026,10 @@ async function zipTo(sans, tok) { // fast-forward the board to a position, from 
   const g = new Chess(); sans.slice(0, from).forEach(m => g.move(m));
   if (from === 0 && D.shown && D.shown.length) {
     duelBoard.set({ fen: g.fen(), orientation: "b" });
-    if (duelBoard.el.animate && !duelBoard._reduced()) duelBoard.el.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 100, easing: "ease-out" });
-    await sleep(60);
+    if (duelBoard.el.animate && !duelBoard._reduced()) duelBoard.el.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 220, easing: "ease-out" });
+    await sleep(220);
   }
-  const n = sans.length - from, ms = n ? Math.max(20, Math.min(50, 320 / n)) : 0; // the whole replay takes about a third of a second
+  const n = sans.length - from, ms = n ? Math.max(60, Math.min(150, 1100 / n)) : 0; // the whole replay takes about a second
   for (let i = from; i < sans.length; i++) {
     if (tok !== D.tok) return;
     const m = g.move(sans[i]);
@@ -2046,10 +2046,10 @@ async function nextRound() {
   const t = $("#duel-timer"); if (t) t.classList.remove("run", "stop");
   setTop(); renderHud(); renderDuelPanel();
   await zipTo(card.sans.slice(0, -1), tok); if (tok !== D.tok) return;
-  await sleep(60); if (tok !== D.tok) return;
+  await sleep(180); if (tok !== D.tok) return;
   const g = new Chess(); card.sans.slice(0, -1).forEach(m => g.move(m)); const m = g.move(card.cue);
   D.g = g; D.last = { from: m.from, to: m.to }; D.shown = card.sans.slice();
-  duelBoard.set({ fen: g.fen(), orientation: "b", last: D.last, check: kingSq(g), animate: { from: m.from, to: m.to, ms: 220 } });
+  duelBoard.set({ fen: g.fen(), orientation: "b", last: D.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
   SND.play("throw");
   const fam = familyOf(card.sans); D.chip = fam !== "start" ? fam : null;
   D.want = new Chess(g.fen()).move(card.main);
@@ -2089,7 +2089,7 @@ function hit(san) {
   playAnswer(san); SND.play(took < 1000 ? "fast" : "good");
   D.state = "done"; D.caption = took < 1000 ? "Lightning!" : "Yes!"; D.sub = "";
   save(); renderHud(true); renderDuelPanel(true);
-  later(nextRound, 300);
+  later(nextRound, 800);
 }
 function miss(kind, mv) {
   stopTimer(); clearDuel();
@@ -2106,7 +2106,7 @@ function copied() {
   if (wasNew) { st.seen = true; D.newOnes++; save(); }
   playAnswer(D.want.san); SND.play("good");
   D.state = "done"; D.caption = wasNew ? "Got it. It'll come back." : "That's the one."; D.sub = "";
-  renderDuelPanel(true); later(nextRound, 450);
+  renderDuelPanel(true); later(nextRound, wasNew ? 1300 : 1000);
 }
 function endRun() {
   clearDuel(); D.state = "over"; const t = $("#duel-timer"); if (t) t.hidden = true;
