@@ -570,17 +570,17 @@ function pressureText(pr, opp) {
 
 // ===== Duel deck: every position where White has just moved and your repertoire has an answer.
 // parent = the answer before it in the same line (a card unlocks once you've answered its parent).
-function duelCards() {
-  const cards = {}, order = [];
-  for (const line of REPERTOIRE.caro.lines) {
+function duelCards(op = "caro") {
+  const cards = {}, order = [], you = REPERTOIRE[op].you;
+  for (const line of REPERTOIRE[op].lines) {
     const g = new Chess(); const sans = []; let parent = null;
     for (const mv of parsePgnText(line.pgn)) {
-      if (g.turn() === "b" && sans.length) {
-        const fen = g.fen(), key = fenKey(fen), book = bookAt("caro", fen);
+      if (g.turn() === you && (sans.length || you === "w")) {
+        const fen = g.fen(), key = fenKey(fen), book = bookAt(op, fen);
         if (book.length) {
           if (!cards[key]) {
             const main = book.slice().sort((a, b) => b.weight - a.weight)[0];
-            cards[key] = { key, sans: sans.slice(), cue: sans[sans.length - 1], answers: book.map(b => b.san), main: main.san, why: main.c || "", parent, depth: sans.length };
+            cards[key] = { key, sans: sans.slice(), cue: sans.length ? sans[sans.length - 1] : null, answers: book.map(b => b.san), main: main.san, why: main.c || "", parent, depth: sans.length };
             order.push(key);
           }
           parent = key;

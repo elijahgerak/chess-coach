@@ -9,7 +9,7 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 
 // ================= Saved state =================
 const KEY = "ckqg-coach-v1";
-const DEFAULT = { opening: "caro", level: 3, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", threat: { on: true, clean: 0 }, guide: { stage: 1, streak: 0 }, duel: { cards: {}, progress: {}, played: 0 }, sound: true };
+const DEFAULT = { opening: "caro", level: 3, stats: { played: 0, won: 0, drawn: 0, lost: 0 }, games: [], username: "", threat: { on: true, clean: 0 }, guide: { stage: 1, streak: 0 }, duel: { cards: {}, progress: {}, played: 0, path: "caro" }, sound: true };
 let S = JSON.parse(JSON.stringify(DEFAULT));
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
 const Store = { ref: null, saving: false, dirty: false, t: 0 };
@@ -165,7 +165,7 @@ let SHEET_ONCLOSE = null;
 function setTop() {
   const v = currentView();
   const inLevel = v === "learn" && D.view === "run";
-  const T = inLevel ? [D.run.name, D.state === "over" ? "Run over" : `Round ${Math.max(1, D.round)} of ${D.queue.length}`] : { learn: ["Caro-Kann", "Learn the answers"], play: ["Stockfish", levelName(S.level)], review: ["Review", "Your chess.com games"] }[v] || ["Caro-Kann", "Learn the answers"];
+  const T = inLevel ? [D.run.name, D.state === "over" ? "Run over" : `Round ${Math.max(1, D.round)} of ${D.queue.length}`] : { learn: [PATHS[path()].name, "Learn the answers"], play: ["Stockfish", levelName(S.level)], review: ["Review", "Your chess.com games"] }[v] || [PATHS[path()].name, "Learn the answers"];
   $("#top-title").textContent = T[0]; $("#top-sub").textContent = T[1];
   $("#restart").hidden = v !== "play"; $("#open-settings").hidden = v === "review" || inLevel;
 }
@@ -174,7 +174,7 @@ function showView(v) {
   if (!["learn", "play", "review"].includes(v)) v = "learn";
   document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.id === "view-" + v));
   document.querySelectorAll(".tab").forEach(x => { x.classList.toggle("on", x.dataset.v === v); x.setAttribute("aria-current", x.dataset.v === v ? "page" : "false"); });
-  if (v !== "learn" && D.view === "run") { clearDuel(); D.view = "home"; D.state = "idle"; }
+  if (v !== "learn" && D.view === "run") { clearDuel(); D.view = "home"; D.state = "idle"; document.body.classList.remove("in-run"); }
   if (v === "learn") renderLearn();
   if (v === "play" && !P.hist.length && !P.busy && !P.over && P.gid === 0) newGame();
   if (v === "review") renderReview();
@@ -562,18 +562,24 @@ const SND = {
 };
 document.addEventListener("pointerdown", () => SND.init(), { once: true });
 
-const DUEL = duelCards();
+// Two paths: the Caro-Kann (you're Black) and the Queen's Gambit (you're White). Each has its own runs.
+const PATHS = { caro: { name: "Caro-Kann", you: "b", runs: RUNS }, qg: { name: "Queen's Gambit", you: "w", runs: QG_RUNS } };
+const DECKS = { caro: duelCards("caro"), qg: duelCards("qg") };
+const DUEL = { cards: { ...DECKS.caro.cards, ...DECKS.qg.cards } };
+for (const k in PATHS) PATHS[k].runs.forEach(r => r.path = k);
+const path = () => PATHS[S.duel.path] ? S.duel.path : "caro";
+const runsNow = () => PATHS[path()].runs;
 const HEARTS = 3, CLEARS = 3;
-const keyOf = sans => { const g = new Chess(); sans.split(" ").forEach(m => g.move(m)); return fenKey(g.fen()); };
-const RUN_CARDS = Object.fromEntries(RUNS.map(r => [r.id, r.all ? DUEL.order.slice() : r.cues.map(keyOf)]));
+const keyOf = sans => { const g = new Chess(); (sans ? sans.split(" ") : []).forEach(m => g.move(m)); return fenKey(g.fen()); };
+const RUN_CARDS = Object.fromEntries([...RUNS, ...QG_RUNS].map(r => [r.id, r.all ? DECKS[r.path].order.slice() : r.cues.map(keyOf)]));
 const D = { view: "home", run: null, queue: [], state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, want: null, last: null, shown: null, chip: null, caption: "", sub: "", tok: 0, timers: [], t0: 0, T: 0, record: false, cleared: false, opened: null };
 let duelBoard;
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
 const LOCK = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Locked"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
 const cst = k => S.duel.cards[k] || (S.duel.cards[k] = { seen: false, ok: 0 });
 const rst = id => S.duel.progress[id] || (S.duel.progress[id] = { clears: 0, best: 0 });
-const runOpen = i => i === 0 || rst(RUNS[i - 1].id).clears >= CLEARS;
-const currentRun = () => RUNS.find((r, i) => runOpen(i) && !r.all && rst(r.id).clears < CLEARS) || RUNS[RUNS.length - 1];
+const runOpen = i => i === 0 || rst(runsNow()[i - 1].id).clears >= CLEARS;
+const currentRun = () => runsNow().find((r, i) => runOpen(i) && !r.all && rst(r.id).clears < CLEARS) || runsNow()[runsNow().length - 1];
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function clearDuel() { D.tok++; D.timers.forEach(clearTimeout); D.timers = []; }
 function later(fn, ms) { const tok = D.tok; D.timers.push(setTimeout(() => { if (D.tok === tok) fn(); }, ms)); }
@@ -588,7 +594,7 @@ function buildQueue(run) {
 }
 function startRun(run) {
   clearDuel();
-  Object.assign(D, { view: "run", run, queue: buildQueue(run), state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, record: false, cleared: false, opened: null, chip: null, caption: "", sub: "" });
+  Object.assign(D, { view: "run", run, side: PATHS[run.path].you, queue: buildQueue(run), state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, record: false, cleared: false, opened: null, chip: null, caption: "", sub: "" });
   renderLearn(); later(nextRound, 500);
 }
 function quitRun() { clearDuel(); D.view = "home"; D.state = "idle"; D.pick = null; renderLearn(); }
@@ -598,7 +604,7 @@ async function zipTo(sans, tok) { // fast-forward the board to a position, from 
   if (D.shown && D.shown.length <= sans.length && D.shown.every((s, i) => s === sans[i])) from = D.shown.length;
   const g = new Chess(); sans.slice(0, from).forEach(m => g.move(m));
   if (from === 0 && D.shown && D.shown.length) {
-    duelBoard.set({ fen: g.fen(), orientation: "b" });
+    duelBoard.set({ fen: g.fen(), orientation: D.side });
     if (duelBoard.el.animate && !duelBoard._reduced()) duelBoard.el.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 220, easing: "ease-out" });
     await sleep(220);
   }
@@ -606,7 +612,7 @@ async function zipTo(sans, tok) { // fast-forward the board to a position, from 
   for (let i = from; i < sans.length; i++) {
     if (tok !== D.tok) return;
     const m = g.move(sans[i]);
-    duelBoard.set({ fen: g.fen(), orientation: "b", last: { from: m.from, to: m.to }, animate: { from: m.from, to: m.to, ms } });
+    duelBoard.set({ fen: g.fen(), orientation: D.side, last: { from: m.from, to: m.to }, animate: { from: m.from, to: m.to, ms } });
     await sleep(ms);
   }
   D.shown = sans.slice();
@@ -618,19 +624,23 @@ async function nextRound() {
   Object.assign(D, { key, card, isNew: !st.seen, state: "zip", chip: null, caption: "", sub: "" });
   const t = $("#duel-timer"); if (t) t.classList.remove("run", "stop");
   setTop(); renderHud(); renderDuelPanel();
-  await zipTo(card.sans.slice(0, -1), tok); if (tok !== D.tok) return;
+  const pre = card.cue ? card.sans.slice(0, -1) : card.sans; // the very first move of the game has nothing to answer
+  await zipTo(pre, tok); if (tok !== D.tok) return;
   await sleep(180); if (tok !== D.tok) return;
-  const g = new Chess(); card.sans.slice(0, -1).forEach(m => g.move(m)); const m = g.move(card.cue);
-  D.g = g; D.last = { from: m.from, to: m.to }; D.shown = card.sans.slice();
-  duelBoard.set({ fen: g.fen(), orientation: "b", last: D.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
-  SND.play("throw");
+  const g = new Chess(); pre.forEach(m => g.move(m));
+  D.g = g; D.shown = card.sans.slice(); D.last = null;
+  if (card.cue) {
+    const m = g.move(card.cue); D.last = { from: m.from, to: m.to };
+    duelBoard.set({ fen: g.fen(), orientation: D.side, last: D.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
+    SND.play("throw");
+  } else duelBoard.set({ fen: g.fen(), orientation: D.side });
   const fam = familyOf(card.sans); D.chip = fam !== "start" ? fam : null;
   D.want = new Chess(g.fen()).move(card.main);
   if (D.isNew) { D.state = "new"; showGhost(); D.caption = "New move. Copy it."; D.sub = shortComment(card.why); }
   else { D.state = "go"; D.caption = "Your move!"; D.sub = ""; startTimer(); }
   renderDuelPanel(true);
 }
-function showGhost() { duelBoard.ghost(D.want.from, D.want.to, "b" + D.want.piece.toUpperCase()); }
+function showGhost() { duelBoard.ghost(D.want.from, D.want.to, D.side + D.want.piece.toUpperCase()); }
 function startTimer() {
   D.T = 3000; D.t0 = performance.now(); // always fast
   const t = $("#duel-timer"); if (t) { t.classList.remove("run", "stop"); t.style.setProperty("--T", D.T + "ms"); void t.offsetWidth; t.classList.add("run"); }
@@ -645,12 +655,12 @@ function onDuelMove(mv) {
     return;
   }
   if (mv.from === D.want.from && mv.to === D.want.to) { copied(); return; }
-  duelBoard.set({ fen: D.g.fen(), orientation: "b", last: D.last }); duelBoard.shake(mv.from); SND.play("bad"); showGhost();
+  duelBoard.set({ fen: D.g.fen(), orientation: D.side, last: D.last }); duelBoard.shake(mv.from); SND.play("bad"); showGhost();
 }
 function playAnswer(san) {
   const m = D.g.move(san); duelBoard.clearGhost();
   D.shown = [...D.card.sans, san];
-  duelBoard.set({ fen: D.g.fen(), orientation: "b", last: { from: m.from, to: m.to }, check: kingSq(D.g), animate: { from: m.from, to: m.to } });
+  duelBoard.set({ fen: D.g.fen(), orientation: D.side, last: { from: m.from, to: m.to }, check: kingSq(D.g), animate: { from: m.from, to: m.to } });
   duelBoard.pop(m.to);
 }
 function hit(san) {
@@ -668,7 +678,7 @@ function miss(kind, mv) {
   stopTimer(); clearDuel();
   D.hearts--; D.combo = 0;
   const at = Math.min(D.round + 2, D.queue.length); if (D.queue[at - 1] !== D.key && D.queue[at] !== D.key) D.queue.splice(at, 0, D.key); // comes back 3 rounds later
-  duelBoard.set({ fen: D.g.fen(), orientation: "b", last: D.last });
+  duelBoard.set({ fen: D.g.fen(), orientation: D.side, last: D.last });
   if (mv) duelBoard.shake(mv.from);
   SND.play("bad"); showGhost();
   D.state = "fix"; D.caption = kind === "slow" ? "Too slow! Copy it." : "Not that one. Copy it."; D.sub = shortComment(D.card.why);
@@ -685,7 +695,7 @@ function endRun() {
   clearDuel(); D.state = "over"; const t = $("#duel-timer"); if (t) t.hidden = true;
   const pr = rst(D.run.id); D.cleared = D.hearts > 0;
   D.record = D.score > pr.best && pr.best > 0; pr.best = Math.max(pr.best, D.score);
-  if (D.cleared && !D.run.all) { pr.clears++; if (pr.clears === CLEARS) D.opened = RUNS[RUNS.indexOf(D.run) + 1] || null; }
+  if (D.cleared && !D.run.all) { pr.clears++; if (pr.clears === CLEARS) { const rs = PATHS[D.run.path].runs; D.opened = rs[rs.indexOf(D.run) + 1] || null; } }
   S.duel.played++; save(); SND.play(D.cleared ? "win" : "lose");
   setTop(); renderHud(); renderDuelPanel(true);
 }
@@ -696,15 +706,17 @@ document.addEventListener("visibilitychange", () => {
 function pipsHTML(n, fresh) { return `<span class="pips" aria-label="Cleared ${Math.min(n, CLEARS)} of ${CLEARS} times">${Array.from({ length: CLEARS }, (_, k) => `<i class="${k < n ? "on" : ""} ${fresh && k === n - 1 ? "new" : ""}"></i>`).join("")}</span>`; }
 function renderLearn() {
   const v = $("#view-learn"); if (!v) return;
-  setTop();
+  setTop(); document.body.classList.toggle("in-run", D.view === "run");
   if (D.view === "home") {
     // One run at a time: the current one, with arrows to step back to earlier runs (and forward again)
-    const open = RUNS.map((r, i) => i).filter(runOpen);
-    if (D.pick == null || !open.includes(D.pick)) D.pick = RUNS.indexOf(currentRun());
-    const i = D.pick, r = RUNS[i], pr = rst(r.id), n = RUN_CARDS[r.id].length, k = open.indexOf(i);
+    const RS = runsNow(), P0 = PATHS[path()];
+    const open = RS.map((r, i) => i).filter(runOpen);
+    if (D.pick == null || !open.includes(D.pick)) D.pick = RS.indexOf(currentRun());
+    const i = D.pick, r = RS[i], pr = rst(r.id), n = RUN_CARDS[r.id].length, k = open.indexOf(i);
     const prev = open[k - 1], next = open[k + 1];
     v.innerHTML = `<div class="duel-home">
-      ${S.duel.played ? "" : `<p class="cap">White moves. You answer before time runs out.</p><p class="capsub">Clear each run ${CLEARS} times to open the next one.</p>`}
+      <div class="seg path-seg" role="group" aria-label="Opening">${Object.entries(PATHS).map(([k, p]) => `<button data-path="${k}" class="${k === path() ? "on" : ""}">${esc(p.name)}</button>`).join("")}</div>
+      ${S.duel.played ? "" : `<p class="cap">${P0.you === "b" ? "White moves. You answer" : "Black moves. You answer"} before time runs out.</p><p class="capsub">Clear each run ${CLEARS} times to open the next one.</p>`}
       <div class="run-card" style="--fam:${FAMILIES[r.family].color}">
         <p class="run-name">${esc(r.name)}</p>
         <p class="sub">${r.all ? `All ${n} answers, mixed` : `${n} answers`}</p>
@@ -714,6 +726,7 @@ function renderLearn() {
       ${open.length > 1 ? `<div class="run-nav"><button class="link" data-step="${prev ?? ""}" ${prev == null ? "disabled" : ""}>‹ Earlier run</button><button class="link" data-step="${next ?? ""}" ${next == null ? "disabled" : ""}>Next run ›</button></div>` : ""}
     </div>`;
     v.querySelector("[data-run]").onclick = () => startRun(r);
+    v.querySelectorAll("[data-path]").forEach(b => b.onclick = () => { if (S.duel.path !== b.dataset.path) { S.duel.path = b.dataset.path; D.pick = null; save(); renderLearn(); } });
     v.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { if (b.dataset.step !== "") { D.pick = +b.dataset.step; renderLearn(); } });
     duelBoard = null; return;
   }
@@ -723,8 +736,8 @@ function renderLearn() {
       <div class="timer" id="duel-timer"><i></i></div>
     </div><div class="side"><div class="coach" id="duel-panel" aria-live="polite"></div></div></div>`;
   duelBoard = new Board(v.querySelector("#duel-board"), { coords: false, interactive: () => ["go", "new", "fix"].includes(D.state), onMove: m => onDuelMove(m) });
-  if (D.g) duelBoard.set({ fen: D.g.fen(), orientation: "b", last: D.last });
-  else { duelBoard.set({ fen: new Chess().fen(), orientation: "b" }); D.shown = []; }
+  if (D.g) duelBoard.set({ fen: D.g.fen(), orientation: D.side, last: D.last });
+  else { duelBoard.set({ fen: new Chess().fen(), orientation: D.side }); D.shown = []; }
   v.querySelector("#duel-quit").onclick = quitRun; renderHud();
   renderDuelPanel();
 }
@@ -987,7 +1000,7 @@ function wire() {
   window.addEventListener("hashchange", () => showView(currentView()));
 }
 function boot() {
-  S.opening = "caro"; ["deck", "lines", "newLines", "newDay", "plan", "pause", "learn"].forEach(k => delete S[k]); S.duel = Object.assign({ cards: {}, progress: {}, played: 0 }, S.duel); ["best", "bestCombo", "runs"].forEach(k => delete S.duel[k]); save();
+  S.opening = "caro"; ["deck", "lines", "newLines", "newDay", "plan", "pause", "learn"].forEach(k => delete S[k]); S.duel = Object.assign({ cards: {}, progress: {}, played: 0, path: "caro" }, S.duel); ["best", "bestCombo", "runs"].forEach(k => delete S.duel[k]); save();
   wire(); showView(currentView());
   renderPlayBoard(); renderCoach();
   connectPlatform();

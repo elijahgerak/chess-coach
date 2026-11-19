@@ -1,6 +1,6 @@
 # Caro-Kann Coach
 
-Learn the **Caro-Kann** (as Black) as a reflex game, then play it against Stockfish. After every move the coach tells you, in one plain sentence, what went wrong, plays out the moves that show the problem, and gives you the better move with a rule of thumb behind it.
+Learn the **Caro-Kann** (as Black) and the **Queen's Gambit** (as White) as a reflex game, then play the Caro-Kann against Stockfish. After every move the coach tells you, in one plain sentence, what went wrong, plays out the moves that show the problem, and gives you the better move with a rule of thumb behind it.
 
 **Live:** https://elijahgerak.github.io/chess-coach/ (open in Safari → Share → Add to Home Screen)
 

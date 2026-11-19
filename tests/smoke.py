@@ -95,6 +95,21 @@ async def main():
         await page.click('[data-step="1"]'); await page.wait_for_timeout(150)
         await page.screenshot(path=os.path.join(OUT, "6-home-after.png"))
 
+        # Queen's Gambit path: you're White, the first answer is 1.d4
+        await page.click('[data-path="qg"]'); await page.wait_for_timeout(200)
+        if "Your first moves" not in await page.inner_text(".run-card"): fails.append("QG path should start at 'Your first moves'")
+        await page.click(".btn.go")
+        for _ in range(4):
+            st = await wait_state(page, ["new", "go", "fix"])
+            if st == "go":
+                await page.wait_for_timeout(1200); await page.screenshot(path=os.path.join(OUT, "7-qg-timer.png"))
+            await page.evaluate("() => onDuelMove({from: D.want.from, to: D.want.to})"); await page.wait_for_timeout(200)
+        if await page.evaluate("() => D.side") != "w": fails.append("QG should be played as White")
+        if await page.evaluate("() => getComputedStyle(document.querySelector('.tabs')).display") != "none": fails.append("tabs should hide during a run")
+        await page.click("#duel-quit"); await page.wait_for_timeout(200)
+        if await page.evaluate("() => getComputedStyle(document.querySelector('.tabs')).display") == "none": fails.append("tabs should come back after a run")
+        await page.click('[data-path="caro"]'); await page.wait_for_timeout(200)
+
         # Reset history wipes progress
         await page.click("#open-settings"); await page.wait_for_timeout(300)
         await page.click("#reset"); await page.click("#reset"); await page.wait_for_timeout(1500)

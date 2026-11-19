@@ -145,6 +145,149 @@ Bb4 {Your bishop attacks the knight that protects e4.}
 ` },
     ],
   },
+  qg: {
+    name: "Queen's Gambit",
+    you: "w",
+    blurb: "You play White. Pressure Black's d5 pawn and take space.",
+    lines: [
+      { name: "QGD Orthodox", weight: 4, pgn: `
+1.d4 {Put a pawn in the middle.}
+d5
+2.c4 {Attack Black's d5 pawn from the side. If Black takes it, you'll win it back.}
+e6 {Black protects d5, but blocks in their c8 bishop.}
+3.Nc3 {Attack d5 again.}
+Nf6
+4.Bg5 {Attack the knight that protects d5.}
+Be7
+5.e3 {Open a path for your f1 bishop.}
+O-O
+6.Nf3 {Bring out your knight. It guards the middle.}
+Nbd7
+7.Rc1 {Rook to the c column. That's where the fight will be.}
+c6
+8.Bd3 {Bring out your last piece.}
+dxc4
+9.Bxc4 {Take the pawn back with your bishop.}
+Nd5 {Black wants to swap pieces to get more room.}
+10.Bxe7 {Swap bishops.}
+Qxe7
+11.O-O {Castle. Your king is safe.}
+Nxc3
+12.Rxc3 {Take back with the rook.}
+e5 {Black frees their bishop. Your plan: queen to c2, bishop to b3, keep the pressure on.}
+` },
+      { name: "QGD: Elephant Trap test", weight: 2, pgn: `
+1.d4 d5 2.c4 e6 3.Nc3 Nf6 4.Bg5
+Nbd7 {Careful! This sets a trap.}
+5.e3 {Right. Don't take on d5 with your knight. A trick would cost you a piece.}
+Be7
+6.Nf3 {Bring out your knight.}
+O-O
+7.Rc1 {Back to the normal plan.}
+` },
+      { name: "Exchange (minority attack)", weight: 3, pgn: `
+1.d4 d5 2.c4 e6 3.Nc3 Nf6
+4.cxd5 {Swap pawns. You get one simple plan for the whole game.}
+exd5
+5.Bg5 {Attack the knight that guards d5.}
+c6
+6.e3 {Open a path for your other bishop.}
+Be7
+7.Bd3 {Bishop out.}
+Nbd7
+8.Qc2 {Queen out, next to your bishop.}
+O-O
+9.Nf3 {Knight out.}
+Re8
+10.O-O {Castle. Your king is safe.}
+Nf8
+11.Rab1 {Plan: push your b-pawn to b4, then b5. That leaves Black with a weak pawn.}
+` },
+      { name: "Queen's Gambit Accepted", weight: 3, pgn: `
+1.d4 d5 2.c4
+dxc4 {Black takes the pawn. In return, Black gets free moves for pieces.}
+3.Nf3 {Bring out a knight first.}
+Nf6
+4.e3 {This opens the way for your bishop to take back on c4.}
+e6
+5.Bxc4 {Pawn back, and your bishop is out.}
+c5
+6.O-O {Castle. Your king is safe.}
+a6
+7.a4 {Stop b5, which would kick your bishop.}
+Nc6
+8.Qe2 {Queen out. Your rook can come to the middle next.}
+cxd4
+9.Rd1 {Rook to the d column. It attacks d4.}
+Be7
+10.exd4 {Take back.}
+O-O
+11.Nc3 {Your d4 pawn has no pawn friends next to it. Keep pieces on and attack.}
+` },
+      { name: "Slav", weight: 3, pgn: `
+1.d4 d5 2.c4
+c6 {Black protects d5 with a pawn. Their c8 bishop stays free.}
+3.Nf3 {Bring out a knight. It guards d4.}
+Nf6
+4.Nc3 {Attack d5 again.}
+dxc4 {Black takes the pawn.}
+5.a4 {Stop b5, so Black can't keep the extra pawn.}
+Bf5
+6.e3 {Open a path for your bishop.}
+e6
+7.Bxc4 {Pawn back.}
+Bb4
+8.O-O {Castle. Your king is safe.}
+O-O
+9.Qe2 {Queen out. It backs up a push to e4.}
+Nbd7
+10.e4 {Push to e4. You take the middle and chase Black's bishop.}
+Bg6
+11.Bd3 {Next: push e5, and chase the bishop with your knight from h4.}
+` },
+      { name: "Semi-Slav", weight: 2, pgn: `
+1.d4 d5 2.c4 c6 3.Nf3 Nf6 4.Nc3
+e6 {Black builds a strong wall.}
+5.e3 {Calmly bring out pieces.}
+Nbd7
+6.Qc2 {Your queen gets ready to support a push to e4.}
+Bd6
+7.Bd3 {Bishop out. It backs up the push to e4.}
+O-O
+8.O-O {Castle. Your king is safe.}
+dxc4
+9.Bxc4 {Next: push e4 and take the middle.}
+` },
+      { name: "Albin Countergambit", weight: 1, pgn: `
+1.d4 d5 2.c4
+e5 {Black gives up a pawn to get fast play.}
+3.dxe5 {Take it.}
+d4 {This pawn gets in your way.}
+4.Nf3 {Right. Pushing e3 here walks into a trap.}
+Nc6
+5.g3 {Get ready to put your bishop on g2.}
+Be6
+6.Nbd2 {Bring out your other knight. It can go after the pawn on d4 later.}
+Qd7
+7.Bg2 {Plan: castle, then push a3 and b4. You're a pawn up.}
+` },
+      { name: "Tarrasch", weight: 1, pgn: `
+1.d4 d5 2.c4 e6 3.Nc3
+c5 {Black wants active pieces, even if a pawn ends up weak.}
+4.cxd5 {Swap pawns in the middle.}
+exd5
+5.Nf3 {Bring out a knight.}
+Nc6
+6.g3 {Your bishop will go to g2 and aim at d5.}
+Nf6
+7.Bg2 {Bishop out. It aims at d5.}
+Be7
+8.O-O {Castle. Your king is safe.}
+O-O
+9.Bg5 {Attack the knight that protects d5. Plan: pile up on d5.}
+` },
+    ],
+  },
 };
 
 // ===== Game plans by pawn structure (the coach detects the structure on the board) =====
@@ -220,6 +363,9 @@ const FAMILIES = {
   swap: { name: "White swaps", color: "#2f7fd1" },
   attack: { name: "White attacks d5", color: "#7a5ae0" },
   rare: { name: "Rare tries", color: "#d14f8a" },
+  hold: { name: "Black holds with e6", color: "#2f9e5b" },
+  slav: { name: "Black holds with c6", color: "#2f7fd1" },
+  takes: { name: "Black takes the pawn", color: "#e07a1f" },
 };
 // ===== Learn runs: each run is a fixed set of positions (White just moved, you answer).
 // Clear a run 5 times (finish with a heart left) to open the next. Every card in the deck is in exactly one run.
@@ -235,9 +381,29 @@ const RUNS = [
   { id: "all", name: "Everything", family: "start", all: true },
 ];
 
+const QG_RUNS = [
+  { id: "qg-first", name: "Your first moves", family: "start", cues: ["", "d4 d5", "d4 d5 c4 e6", "d4 d5 c4 dxc4", "d4 d5 c4 c6", "d4 d5 c4 e5"] },
+  { id: "qg-hold", name: "Black holds with e6", family: "hold", cues: ["d4 d5 c4 e6 Nc3 Nf6", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 Nbd7", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 Nbd7 Rc1 c6", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 Nbd7 Rc1 c6 Bd3 dxc4"] },
+  { id: "qg-hold2", name: "Black holds, part 2", family: "hold", cues: ["d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 Nbd7 Rc1 c6 Bd3 dxc4 Bxc4 Nd5", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 Nbd7 Rc1 c6 Bd3 dxc4 Bxc4 Nd5 Bxe7 Qxe7", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 Nbd7 Rc1 c6 Bd3 dxc4 Bxc4 Nd5 Bxe7 Qxe7 O-O Nxc3", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Nbd7", "d4 d5 c4 e6 Nc3 Nf6 Bg5 Nbd7 e3 Be7"] },
+  { id: "qg-swap", name: "You swap on d5", family: "hold", cues: ["d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5", "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 c6", "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 c6 e3 Be7", "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 c6 e3 Be7 Bd3 Nbd7", "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 c6 e3 Be7 Bd3 Nbd7 Qc2 O-O", "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 c6 e3 Be7 Bd3 Nbd7 Qc2 O-O Nf3 Re8", "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 c6 e3 Be7 Bd3 Nbd7 Qc2 O-O Nf3 Re8 O-O Nf8"] },
+  { id: "qg-takes", name: "Black takes the pawn", family: "takes", cues: ["d4 d5 c4 dxc4 Nf3 Nf6", "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6", "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5", "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5 O-O a6", "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5 O-O a6 a4 Nc6", "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5 O-O a6 a4 Nc6 Qe2 cxd4", "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5 O-O a6 a4 Nc6 Qe2 cxd4 Rd1 Be7", "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5 O-O a6 a4 Nc6 Qe2 cxd4 Rd1 Be7 exd4 O-O"] },
+  { id: "qg-slav", name: "Black holds with c6", family: "slav", cues: ["d4 d5 c4 c6 Nf3 Nf6", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4 Bb4", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4 Bb4 O-O O-O", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4 Bb4 O-O O-O Qe2 Nbd7", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4 Bb4 O-O O-O Qe2 Nbd7 e4 Bg6"] },
+  { id: "qg-wall", name: "Black builds a wall", family: "slav", cues: ["d4 d5 c4 c6 Nf3 Nf6 Nc3 e6", "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 e3 Nbd7", "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 e3 Nbd7 Qc2 Bd6", "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 e3 Nbd7 Qc2 Bd6 Bd3 O-O", "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 e3 Nbd7 Qc2 Bd6 Bd3 O-O O-O dxc4"] },
+  { id: "qg-pawn", name: "Black gives up a pawn", family: "rare", cues: ["d4 d5 c4 e5 dxe5 d4", "d4 d5 c4 e5 dxe5 d4 Nf3 Nc6", "d4 d5 c4 e5 dxe5 d4 Nf3 Nc6 g3 Be6", "d4 d5 c4 e5 dxe5 d4 Nf3 Nc6 g3 Be6 Nbd2 Qd7"] },
+  { id: "qg-c5", name: "Black hits back with c5", family: "rare", cues: ["d4 d5 c4 e6 Nc3 c5", "d4 d5 c4 e6 Nc3 c5 cxd5 exd5", "d4 d5 c4 e6 Nc3 c5 cxd5 exd5 Nf3 Nc6", "d4 d5 c4 e6 Nc3 c5 cxd5 exd5 Nf3 Nc6 g3 Nf6", "d4 d5 c4 e6 Nc3 c5 cxd5 exd5 Nf3 Nc6 g3 Nf6 Bg2 Be7", "d4 d5 c4 e6 Nc3 c5 cxd5 exd5 Nf3 Nc6 g3 Nf6 Bg2 Be7 O-O O-O"] },
+  { id: "qg-all", name: "Everything", family: "start", all: true },
+];
+
 // White's choice → family, so the duel can flash the right color
 function familyOf(sans) {
   const s = sans.join(" ");
+  if (s.startsWith("d4")) {
+    if (/^d4 d5 c4 (e5|e6 Nc3 c5)/.test(s)) return "rare";
+    if (s.startsWith("d4 d5 c4 dxc4")) return "takes";
+    if (s.startsWith("d4 d5 c4 c6")) return "slav";
+    if (s.startsWith("d4 d5 c4 e6")) return "hold";
+    return "start";
+  }
   if (s.startsWith("e4 c6 Nc3")) return "rare";
   if (/^e4 c6 d4 d5 (Nc3|Nd2)/.test(s)) return "protect";
   if (/^e4 c6 d4 d5 e5/.test(s)) return /e5 Bf5 (h4|Bd3|Nc3)/.test(s) ? "rare" : "push";
