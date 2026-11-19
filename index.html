@@ -289,22 +289,17 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 0; }
 .big-score { font-size: 64px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
 .record { font-weight: 600; color: #c99700; }
 .duel-home { display: flex; flex-direction: column; gap: 14px; padding-top: 8px; width: 100%; max-width: 560px; }
-.runs { list-style: none; margin: 6px 0 0; padding: 0; background: var(--raised); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
-.runs li + li { border-top: 1px solid var(--rule); }
-.run-row { width: 100%; border: 0; background: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; text-align: left; transition: background .15s var(--ease-out); }
-.run-row:active { background: var(--paper); }
-.run-row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.run-row .txt b { font-weight: 600; font-size: 16px; letter-spacing: -0.01em; }
-.run-row .txt span { color: var(--ink-2); font-size: 14px; }
-.run-row.locked { cursor: default; }
-.run-row.locked .txt { opacity: .45; }
-.run-row svg { color: var(--ink-2); flex: none; }
+.run-card { background: var(--raised); border-radius: 22px; box-shadow: var(--shadow); padding: 24px 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+.run-name { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+.run-card .over-pips { margin: 6px 0 10px; }
+.run-nav { display: flex; justify-content: space-between; }
+.run-nav .link:disabled { opacity: .3; cursor: default; }
+.btn.danger { color: var(--t-worse); }
 .pips { display: flex; gap: 5px; flex: none; }
 .pips i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); }
 .pips i.on { background: var(--fam); }
 .pips i.new { animation: pip .45s var(--ease-out) .15s both; }
 @keyframes pip { from { transform: scale(2.2); opacity: 0; } }
-.best { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; flex: none; }
 .over-pips { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 .over-pips .pips { gap: 7px; }
 .over-pips .pips i { width: 16px; height: 16px; }
@@ -1947,7 +1942,13 @@ function openSettings() {
   openSheet(`<h2>Settings</h2>
     <section><h3>Opponent strength</h3><div class="stepper"><button class="btn" data-lv="-1" aria-label="Weaker">−</button><output id="lv">${levelName(S.level)}</output><button class="btn" data-lv="1" aria-label="Stronger">+</button></div><p class="sub">Goes up when you win, down when you lose.</p></section>
     <section><h3>Help</h3><div class="seg" role="group" aria-label="Help level">${[1, 2].map(i => `<button data-help="${i}" class="${S.guide.stage === i ? "on" : ""}">${HELP[i]}</button>`).join("")}</div><p class="sub" id="help-sub">${S.guide.stage === 1 ? "Each turn shows the idea. You find the move." : "Nothing shown. Tap Hint when you need it."}</p></section>
-    <section><label class="switch"><span>Sounds</span><input type="checkbox" id="snd" ${S.sound ? "checked" : ""}></label></section>`, sh => {
+    <section><label class="switch"><span>Sounds</span><input type="checkbox" id="snd" ${S.sound ? "checked" : ""}></label></section>
+    <section><button class="btn soft wide danger" id="reset">Reset history</button><p class="sub">Erases your runs, games and scores.</p></section>`, sh => {
+    sh.querySelector("#reset").onclick = e => {
+      const b = e.currentTarget;
+      if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "Tap again to erase everything"; return; }
+      const sound = S.sound; S = JSON.parse(JSON.stringify(DEFAULT)); S.sound = sound; save(); location.reload();
+    };
     sh.querySelector("#snd").onchange = e => { S.sound = e.target.checked; save(); };
     sh.querySelectorAll("[data-help]").forEach(b => b.onclick = () => { S.guide.stage = +b.dataset.help; S.guide.streak = 0; save(); sh.querySelectorAll("[data-help]").forEach(x => x.classList.toggle("on", x === b)); sh.querySelector("#help-sub").textContent = S.guide.stage === 1 ? "Each turn shows the idea. You find the move." : "Nothing shown. Tap Hint when you need it."; if (myTurnIdle()) P.helpStep = Math.max(P.helpStep, S.guide.stage === 1 ? 1 : 0); renderPlayBoard(); renderCoach(); });
     sh.querySelectorAll("[data-lv]").forEach(b => b.onclick = () => { S.level = Math.max(0, Math.min(LEVELS.length - 1, S.level + +b.dataset.lv)); sh.querySelector("#lv").textContent = levelName(S.level); setTop(); save(); });
@@ -1990,7 +1991,7 @@ const SND = {
 document.addEventListener("pointerdown", () => SND.init(), { once: true });
 
 const DUEL = duelCards();
-const HEARTS = 3, CLEARS = 5;
+const HEARTS = 3, CLEARS = 3;
 const keyOf = sans => { const g = new Chess(); sans.split(" ").forEach(m => g.move(m)); return fenKey(g.fen()); };
 const RUN_CARDS = Object.fromEntries(RUNS.map(r => [r.id, r.all ? DUEL.order.slice() : r.cues.map(keyOf)]));
 const D = { view: "home", run: null, queue: [], state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, want: null, last: null, shown: null, chip: null, caption: "", sub: "", tok: 0, timers: [], t0: 0, T: 0, record: false, cleared: false, opened: null };
@@ -2018,7 +2019,7 @@ function startRun(run) {
   Object.assign(D, { view: "run", run, queue: buildQueue(run), state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, record: false, cleared: false, opened: null, chip: null, caption: "", sub: "" });
   renderLearn(); later(nextRound, 500);
 }
-function quitRun() { clearDuel(); D.view = "home"; D.state = "idle"; renderLearn(); }
+function quitRun() { clearDuel(); D.view = "home"; D.state = "idle"; D.pick = null; renderLearn(); }
 
 async function zipTo(sans, tok) { // fast-forward the board to a position, from where it is if possible
   let from = 0;
@@ -2121,22 +2122,27 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function pipsHTML(n, fresh) { return `<span class="pips" aria-label="Cleared ${Math.min(n, CLEARS)} of ${CLEARS} times">${Array.from({ length: CLEARS }, (_, k) => `<i class="${k < n ? "on" : ""} ${fresh && k === n - 1 ? "new" : ""}"></i>`).join("")}</span>`; }
-function runRowHTML(r, i, cur) {
-  const open = runOpen(i), pr = rst(r.id), n = RUN_CARDS[r.id].length;
-  const right = !open ? LOCK : r.all ? (pr.best ? `<span class="best">Best ${pr.best.toLocaleString()}</span>` : "") : pipsHTML(pr.clears);
-  return `<li><button class="run-row ${r === cur ? "now" : ""} ${open ? "" : "locked"}" data-run="${i}" ${open ? "" : "disabled"} style="--fam:${FAMILIES[r.family].color}">
-    <span class="txt"><b>${esc(r.name)}</b><span>${r.all ? `All ${n} answers, mixed` : `${n} answers`}</span></span>${right}</button></li>`;
-}
 function renderLearn() {
   const v = $("#view-learn"); if (!v) return;
   setTop();
   if (D.view === "home") {
-    const cur = currentRun();
+    // One run at a time: the current one, with arrows to step back to earlier runs (and forward again)
+    const open = RUNS.map((r, i) => i).filter(runOpen);
+    if (D.pick == null || !open.includes(D.pick)) D.pick = RUNS.indexOf(currentRun());
+    const i = D.pick, r = RUNS[i], pr = rst(r.id), n = RUN_CARDS[r.id].length, k = open.indexOf(i);
+    const prev = open[k - 1], next = open[k + 1];
     v.innerHTML = `<div class="duel-home">
       ${S.duel.played ? "" : `<p class="cap">White moves. You answer before time runs out.</p><p class="capsub">Clear each run ${CLEARS} times to open the next one.</p>`}
-      <button class="btn primary go" data-run="${RUNS.indexOf(cur)}">Play: ${esc(cur.name)}</button>
-      <ol class="runs">${RUNS.map((r, i) => runRowHTML(r, i, cur)).join("")}</ol></div>`;
-    v.querySelectorAll("[data-run]").forEach(b => b.onclick = () => startRun(RUNS[+b.dataset.run]));
+      <div class="run-card" style="--fam:${FAMILIES[r.family].color}">
+        <p class="run-name">${esc(r.name)}</p>
+        <p class="sub">${r.all ? `All ${n} answers, mixed` : `${n} answers`}</p>
+        ${r.all ? (pr.best ? `<p class="sub">Best ${pr.best.toLocaleString()}</p>` : "") : `<div class="over-pips">${pipsHTML(pr.clears)}<span>${Math.min(pr.clears, CLEARS)} of ${CLEARS}</span></div>`}
+        <button class="btn primary go" data-run="${i}">Play</button>
+      </div>
+      ${open.length > 1 ? `<div class="run-nav"><button class="link" data-step="${prev ?? ""}" ${prev == null ? "disabled" : ""}>‹ Earlier run</button><button class="link" data-step="${next ?? ""}" ${next == null ? "disabled" : ""}>Next run ›</button></div>` : ""}
+    </div>`;
+    v.querySelector("[data-run]").onclick = () => startRun(r);
+    v.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { if (b.dataset.step !== "") { D.pick = +b.dataset.step; renderLearn(); } });
     duelBoard = null; return;
   }
   v.innerHTML = `<div class="live"><div class="main">
