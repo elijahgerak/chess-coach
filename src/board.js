@@ -24,7 +24,11 @@ class Board {
     const prevFen = this.fen;
     Object.assign(this, { arrows: [], marks: {}, last: null, check: null, ...o });
     this.sel = null;
-    this.render(o.animate && prevFen ? o.animate : null);
+    let anim = o.animate && prevFen ? o.animate : null;
+    // Your own move is never replayed: a dragged piece stays where you dropped it, a tapped one slides over quickly
+    const u = this._mine; this._mine = null;
+    if (anim && u && u.from === anim.from && u.to === anim.to) anim = u.dragged ? null : { ...anim, ms: 100, flat: true };
+    this.render(anim);
   }
   render(anim) {
     const g = new Chess(this.fen); this.game = g;
@@ -42,7 +46,7 @@ class Board {
         const img = document.createElement("img");
         img.src = PIECES[p.color + p.type.toUpperCase()]; img.alt = ""; img.draggable = false;
         d.appendChild(img);
-        if (anim && anim.to === sq) this._glide(img, anim.from, anim.to, anim.ms);
+        if (anim && anim.to === sq) this._glide(img, anim.from, anim.to, anim.ms, anim.flat);
       }
       const showFile = this.orientation === "w" ? r === 1 : r === 8;
       const showRank = this.orientation === "w" ? f === 0 : f === 7;
@@ -58,11 +62,11 @@ class Board {
     const [ff, fr] = sqFR(from), [tf, tr] = sqFR(to); const dir = this.orientation === "w" ? 1 : -1;
     return [(ff - tf) * 100 * dir, (tr - fr) * 100 * dir];
   }
-  _glide(img, from, to, ms) {
+  _glide(img, from, to, ms, flat) {
     if (this._reduced() || !img.animate) return;
     const [dx, dy] = this._offset(from, to);
     img.style.zIndex = 5;
-    const a = img.animate([
+    const a = flat ? img.animate([{ transform: `translate(${dx}%, ${dy}%)` }, { transform: "translate(0, 0)" }], { duration: ms, easing: "cubic-bezier(0.23, 1, 0.32, 1)" }) : img.animate([
       { transform: `translate(${dx}%, ${dy}%) scale(1)`, filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
       { transform: `translate(${dx * 0.45}%, ${dy * 0.45}%) scale(1.12)`, filter: "drop-shadow(0 10px 8px rgba(0,0,0,.28))", offset: 0.5 },
       { transform: "translate(0, 0) scale(1)", filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
@@ -180,7 +184,9 @@ class Board {
     let promo;
     if (ms.some(m => m.promotion)) { promo = await this._pickPromotion(to); if (!promo) { this._select(null); return; } }
     this._select(null);
+    this._mine = { from, to, dragged: !!dragged };
     this.opts.onMove && this.opts.onMove({ from, to, promotion: promo }, dragged);
+    this._mine = null;
   }
   _pickPromotion(to) {
     return new Promise(res => {
