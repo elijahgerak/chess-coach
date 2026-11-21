@@ -2192,11 +2192,26 @@ function later(fn, ms) { const tok = D.tok; D.timers.push(setTimeout(() => { if 
 
 // A run plays its positions in order once (so the line flows), then again shuffled (so you answer by sight).
 // "Everything" is 15 random positions from the whole deck.
+// Every run = learn the new answers (in order), then review everything you've learned before plus the new ones,
+// all mixed together, so nothing fades. Each answer also keeps a strength (box) so Everything can pick the weakest.
+const REVIEW_DAYS = [0, 1, 2, 4, 8, 16, 30], DAY_MS = 86400000;
+const dueAt = k => { const c = S.duel.cards[k]; return c && c.seen ? (c.due || 0) : Infinity; };
+function learnedBefore(run) { // every answer you've seen from the runs before this one
+  const rs = PATHS[run.path].runs, before = rs.slice(0, rs.indexOf(run)).filter(r => !r.all);
+  return [...new Set(before.flatMap(r => RUN_CARDS[r.id]))].filter(k => dueAt(k) < Infinity);
+}
 function buildQueue(run) {
   const keys = RUN_CARDS[run.id];
-  if (run.all) { const q = []; while (q.length < 15) { const k = keys[Math.floor(Math.random() * keys.length)]; if (k !== q[q.length - 1]) q.push(k); } return q; }
-  let mixed = shuffle(keys); if (mixed[0] === keys[keys.length - 1]) mixed.push(mixed.shift());
+  if (run.all) { // the 15 answers you're closest to forgetting, in a random order
+    const pool = shuffle(keys).sort((a, b) => dueAt(a) - dueAt(b)).slice(0, 15);
+    return shuffle(pool);
+  }
+  let mixed = shuffle([...keys, ...learnedBefore(run)]); if (mixed[0] === keys[keys.length - 1]) mixed.push(mixed.shift());
   return [...keys, ...mixed];
+}
+function remember(k, right) {
+  const c = cst(k); c.box = right ? Math.min((c.box || 0) + 1, REVIEW_DAYS.length - 1) : 0;
+  c.due = Date.now() + REVIEW_DAYS[c.box] * DAY_MS;
 }
 function startRun(run) {
   clearDuel();
@@ -2272,7 +2287,7 @@ function playAnswer(san) {
 function hit(san) {
   stopTimer(); clearDuel();
   const took = performance.now() - D.t0, frac = Math.max(0, 1 - took / D.T);
-  cst(D.key).ok++;
+  cst(D.key).ok++; remember(D.key, true);
   D.combo++; D.bestCombo = Math.max(D.bestCombo, D.combo);
   const pts = Math.round(50 + 50 * frac) * (1 + Math.floor(D.combo / 5)); D.score += pts; D.gain = pts;
   playAnswer(san); SND.play(took < 1000 ? "fast" : "good");
@@ -2283,6 +2298,7 @@ function hit(san) {
 function miss(kind, mv) {
   stopTimer(); clearDuel();
   D.hearts--; D.combo = 0;
+  remember(D.key, false);
   const at = Math.min(D.round + 2, D.queue.length); if (D.queue[at - 1] !== D.key && D.queue[at] !== D.key) D.queue.splice(at, 0, D.key); // comes back 3 rounds later
   duelBoard.set({ fen: D.g.fen(), orientation: D.side, last: D.last });
   if (mv) duelBoard.shake(mv.from);
@@ -2292,7 +2308,7 @@ function miss(kind, mv) {
 }
 function copied() {
   const wasNew = D.state === "new"; const st = cst(D.key);
-  if (wasNew) { st.seen = true; D.newOnes++; save(); }
+  if (wasNew) { st.seen = true; st.box = 0; st.due = Date.now(); D.newOnes++; save(); }
   playAnswer(D.want.san); SND.play("good");
   D.state = "done"; D.caption = wasNew ? "Got it. It'll come back." : "That's the one."; D.sub = "";
   renderDuelPanel(true); later(nextRound, wasNew ? 1300 : 1000);
@@ -2325,7 +2341,7 @@ function renderLearn() {
       ${S.duel.played ? "" : `<p class="cap">${P0.you === "b" ? "White moves. You answer" : "Black moves. You answer"} before time runs out.</p><p class="capsub">Clear each run ${CLEARS} times to open the next one.</p>`}
       <div class="run-card" style="--fam:${FAMILIES[r.family].color}">
         <p class="run-name">${esc(r.name)}</p>
-        <p class="sub">${r.all ? `All ${n} answers, mixed` : `${n} answers`}</p>
+        <p class="sub">${r.all ? `The ${Math.min(15, n)} answers you're closest to forgetting` : (learnedBefore(r).length ? `${n} new, then a review of all ${learnedBefore(r).length + n} you know` : `${n} answers`)}</p>
         ${r.all ? (pr.best ? `<p class="sub">Best ${pr.best.toLocaleString()}</p>` : "") : `<div class="over-pips">${pipsHTML(pr.clears)}<span>${Math.min(pr.clears, CLEARS)} of ${CLEARS}</span></div>`}
         <button class="btn primary go" data-run="${i}">Play</button>
       </div>
