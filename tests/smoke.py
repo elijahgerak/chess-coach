@@ -93,6 +93,12 @@ async def main():
         await page.click('[data-step="0"]'); await page.wait_for_timeout(150)
         if "White's first moves" not in await page.inner_text(".run-card"): fails.append("'Earlier run' should go back to run 1")
         await page.click('[data-step="1"]'); await page.wait_for_timeout(150)
+        # New + review everything: run 2 = its 5 new answers in order, then all 11 known answers mixed
+        mix = await page.evaluate("""() => { const old = RUN_CARDS.first; old.forEach(k => cst(k).seen = true);
+            const q = buildQueue(RUNS[1]), nw = RUN_CARDS.protect; return { newFirst: q.slice(0, nw.length).every((k, i) => k === nw[i]), review: q.slice(nw.length).sort().join() === [...old, ...nw].sort().join() }; }""")
+        if not (mix["newFirst"] and mix["review"]): fails.append(f"run 2 should be new answers then a review of everything, got {mix}")
+        await page.evaluate("() => renderLearn()")
+        if "review of all 11" not in await page.inner_text(".run-card"): fails.append("run card should say it reviews everything you know")
         await page.screenshot(path=os.path.join(OUT, "6-home-after.png"))
 
         # Queen's Gambit path: you're White, the first answer is 1.d4
