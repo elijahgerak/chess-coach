@@ -123,10 +123,10 @@ async def main():
         await page.screenshot(path=os.path.join(OUT, "8-against-d4.png"))
         # Principles: one rule per run, you're White
         await page.click('[data-path="rules"]'); await page.wait_for_timeout(200)
-        if "Take free pieces" not in await page.inner_text(".run-card"): fails.append("Principles should start at 'Take free pieces'")
+        if "Bishop out before e6" not in await page.inner_text(".run-card"): fails.append("Principles should start at 'Bishop out before e6'")
         await page.screenshot(path=os.path.join(OUT, "9-principles.png"))
         await page.click(".btn.go"); await wait_state(page, ["new"])
-        if await page.evaluate("() => [D.side, D.card.main].join()") != "w,Nxh4": fails.append("first principle card should be Nxh4 as White")
+        if await page.evaluate("() => [D.side, D.card.main].join()") != "b,Bf5": fails.append("first principle card should be Bf5 as Black")
         await page.click("#duel-quit"); await page.wait_for_timeout(200)
         await page.click('[data-path="caro"]'); await page.wait_for_timeout(200)
 

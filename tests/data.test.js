@@ -39,20 +39,17 @@ for (const [op, runs, first] of [["caro", [...RUNS, ...D4_RUNS], "c6"], ["qg", Q
   }
   for (const k of deck.order) if (!inRun[k]) bad(`no ${op} run has "${deck.cards[k].sans.join(" ")}"`);
 }
-// principles: every answer legal, your move as White, a reason, a rule
+// principles: every cue is a real position from that opening's lines, every run has a rule, no position twice
 const pc = principleCards(); total += pc.order.length;
 for (const r of PRINCIPLE_RUNS) {
   if (!FAMILIES[r.family]) bad(`principle ${r.id}: unknown family`);
   if (r.all) continue;
   if (!r.rule) bad(`principle ${r.id}: needs a rule`);
-  for (const c of r.cards) {
-    const g = new Chess(); (c.moves ? c.moves.split(" ") : []).forEach(m => g.move(m) || bad(`principle ${r.id}: illegal ${m}`));
-    if (g.turn() !== "w") bad(`principle ${r.id} "${c.moves}": should be White to move`);
-    if (!c.why) bad(`principle ${r.id} "${c.moves}": needs a reason`);
-    for (const a of c.answers) if (!new Chess(g.fen()).move(a)) bad(`principle ${r.id} "${c.moves}": answer ${a} illegal`);
-  }
+  if (r.cues.length < 4 || r.cues.length > 8) bad(`principle ${r.id}: ${r.cues.length} positions (keep 4-8)`);
+  const deck = duelCards(r.op);
+  for (const cue of r.cues) { const g = new Chess(); cue.split(" ").forEach(m => g.move(m)); if (!deck.cards[fenKey(g.fen())]) bad(`principle ${r.id}: "${cue}" isn't a position in your ${r.op} lines`); }
 }
-if (pc.order.length !== new Set(pc.order).size) bad("principles: two cards share a position");
+if (pc.order.length !== new Set(pc.order).size) bad("principles: a position is in two runs");
 for (const t of TRAPS) { const g = new Chess(); t.moves.split(" ").forEach(m => g.move(m) || bad(`trap: illegal ${m}`)); if (!g.move(t.san)) bad(`trap ${t.san} illegal`); }
 for (const [id, p] of Object.entries(PLANS)) if (!p.focus || !p.moves || p.moves.length < p.steps.filter(s => s.check !== "tip").length) bad(`plan ${id}: missing focus/moves`);
 console.log(fail ? `${fail} problem(s)` : `data: all lines, ${total} duel cards, traps and plans OK`);

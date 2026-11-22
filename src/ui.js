@@ -567,18 +567,18 @@ const PATHS = {
   caro: { name: "Caro-Kann", tab: "Caro-Kann", you: "b", runs: RUNS },
   slav: { name: "Caro-Kann vs d4", tab: "Against d4", you: "b", runs: D4_RUNS },
   qg: { name: "Queen's Gambit", tab: "Queen's Gambit", you: "w", runs: QG_RUNS },
-  rules: { name: "Principles", tab: "Principles", you: "w", runs: PRINCIPLE_RUNS },
+  rules: { name: "Principles", tab: "Principles", you: "b", runs: PRINCIPLE_RUNS },
 };
 const split = (deck, keep) => { const order = deck.order.filter(k => keep(deck.cards[k])); return { order, cards: Object.fromEntries(order.map(k => [k, deck.cards[k]])) }; };
 const CARO = duelCards("caro"); // the Caro-Kann answers to 1.e4, and to 1.d4 (the Slav and the London)
 const DECKS = { caro: split(CARO, c => c.sans[0] !== "d4"), slav: split(CARO, c => c.sans[0] === "d4"), qg: duelCards("qg"), rules: principleCards() };
-const DUEL = { cards: { ...CARO.cards, ...DECKS.qg.cards, ...DECKS.rules.cards } };
+const DUEL = { cards: { ...CARO.cards, ...DECKS.qg.cards } }; // principle cards live in DECKS.rules (same positions, tagged with their idea)
 for (const k in PATHS) PATHS[k].runs.forEach(r => r.path = k);
 const path = () => PATHS[S.duel.path] ? S.duel.path : "caro";
 const runsNow = () => PATHS[path()].runs;
 const HEARTS = 3, CLEARS = 3;
 const keyOf = sans => { const g = new Chess(); (sans ? sans.split(" ") : []).forEach(m => g.move(m)); return fenKey(g.fen()); };
-const RUN_CARDS = Object.fromEntries([...RUNS, ...D4_RUNS, ...QG_RUNS, ...PRINCIPLE_RUNS].map(r => [r.id, r.all ? DECKS[r.path].order.slice() : r.cards ? r.cards.map(c => keyOf(c.moves)) : r.cues.map(keyOf)]));
+const RUN_CARDS = Object.fromEntries([...RUNS, ...D4_RUNS, ...QG_RUNS, ...PRINCIPLE_RUNS].map(r => [r.id, r.all ? DECKS[r.path].order.slice() : r.cues.map(keyOf)]));
 const D = { view: "home", run: null, queue: [], state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, want: null, last: null, shown: null, chip: null, caption: "", sub: "", tok: 0, timers: [], t0: 0, T: 0, record: false, cleared: false, opened: null };
 let duelBoard;
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
@@ -642,7 +642,8 @@ async function zipTo(sans, tok) { // fast-forward the board to a position, from 
 async function nextRound() {
   if (D.hearts <= 0 || D.round >= D.queue.length) { endRun(); return; }
   clearDuel(); const tok = D.tok;
-  const key = D.queue[D.round++], card = DUEL.cards[key], st = cst(key);
+  const key = D.queue[D.round++], card = (DECKS[D.run.path].cards || {})[key] || DUEL.cards[key], st = cst(key);
+  if (card.side && card.side !== D.side) { D.side = card.side; D.shown = null; } // principles mix both sides: flip the board when the side changes
   Object.assign(D, { key, card, isNew: !st.seen, state: "zip", chip: null, caption: "", sub: "" });
   const t = $("#duel-timer"); if (t) t.classList.remove("run", "stop");
   setTop(); renderHud(); renderDuelPanel();
