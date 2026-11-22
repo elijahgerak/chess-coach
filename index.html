@@ -287,6 +287,7 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 0; }
 body.in-run .tabs { display: none; }
 body.in-run main, body.in-run .view { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
 .path-seg { align-self: stretch; }
+.path-seg button { flex: 1; white-space: nowrap; font-size: 14px; padding-left: 4px; padding-right: 4px; letter-spacing: -0.01em; }
 .cap.warn { color: var(--t-worse); }
 .gain { font-size: 18px; font-weight: 700; color: var(--t-good); font-variant-numeric: tabular-nums; }
 .gain span { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-left: 6px; }
@@ -532,6 +533,78 @@ e6 {Play it safe. Next your bishop comes out and c5 hits the middle.}
 4.Nc3
 Bb4 {Your bishop attacks the knight that protects e4.}
 ` },
+      { name: "Against d4: Slav", weight: 3, pgn: `
+1.d4 {White starts with the queen's pawn.}
+d5 {Take your share of the middle, same as against e4.}
+2.c4 {White attacks your pawn on d5 from the side.}
+c6 {Guard d5 with a pawn. That's the Caro-Kann idea again.}
+3.Nf3 {White brings out a knight.}
+Nf6 {Knight out. It guards d5 too.}
+4.Nc3 {White attacks d5 again.}
+dxc4 {Take the pawn. White has to spend time winning it back.}
+5.a4 {White stops you from holding the pawn with b5.}
+Bf5 {Bishop out before e6, just like in the Caro-Kann.}
+6.e3 {White gets ready to take back on c4.}
+e6 {Now close the wall. Your bishop is already out.}
+7.Bxc4 {White wins the pawn back.}
+Bb4 {Bishop out. It pins White's knight to the king.}
+8.O-O {White castles.}
+O-O {Castle. Your king is safe.}` },
+      { name: "Against d4: Slav, knight first", weight: 1, pgn: `
+1.d4 d5 2.c4 c6
+3.Nc3 {White brings out the other knight first.}
+Nf6 {Knight out. It guards d5.}
+4.Nf3 dxc4 5.a4 Bf5` },
+      { name: "Against d4: Slav, quiet e3", weight: 1, pgn: `
+1.d4 d5 2.c4 c6 3.Nf3 Nf6
+4.e3 {White quietly guards c4 and d4.}
+Bf5 {Bishop out before e6.}
+5.Nc3 {White brings out the other knight.}
+e6 {Close the wall now.}
+6.Nh4 {The knight chases your bishop.}
+Bg6 {Step back. Your bishop stays outside the wall.}
+7.Nxg6 {White takes your bishop.}
+hxg6 {Take back. Your rook gets room on the side.}` },
+      { name: "Against d4: White swaps on d5", weight: 2, pgn: `
+1.d4 d5 2.c4 c6
+3.cxd5 {White swaps pawns in the middle.}
+cxd5 {Take back with the side pawn. Now it stands in the middle.}
+4.Nc3 {White attacks d5.}
+Nf6 {Knight out. It guards d5.}
+5.Bf4 {White brings out a bishop.}
+Nc6 {Other knight out.}
+6.e3 {White opens a path for the other bishop.}
+Bf5 {Bishop out, before e6.}
+7.Nf3 {White brings out the last knight.}
+e6 {Close the wall. Your bishop is already out.}` },
+      { name: "Against d4: London", weight: 2, pgn: `
+1.d4 d5
+2.Bf4 {White brings a bishop out early. This is called the London.}
+c5 {Hit the pawn on d4 right away.}
+3.e3 {White props up d4.}
+Nc6 {Knight out. It attacks d4 too.}
+4.Nf3 {White guards d4 with a knight.}
+Nf6 {Other knight out.}
+5.c3 {White guards d4 with another pawn.}
+Qb6 {Queen out. She attacks the pawn on b2, which White's bishop left behind.}
+6.Qb3 {White blocks with the queen.}
+c4 {Push past. Now White's queen has to move.}
+7.Qc2 {The queen steps back.}
+Bf5 {Bishop out, and it attacks White's queen.}` },
+      { name: "Against d4: knight first", weight: 1, pgn: `
+1.d4 d5
+2.Nf3 {White brings out a knight first.}
+Nf6 {Knight out too.}
+3.c4 {White attacks d5 from the side.}
+c6 {Guard d5 with a pawn, the Caro-Kann way.}
+4.Nc3 dxc4` },
+      { name: "Against d4: knight, then London", weight: 1, pgn: `
+1.d4 d5 2.Nf3 Nf6
+3.Bf4 {White brings the bishop out: the London again.}
+c5 {Hit the pawn on d4 right away.}
+4.e3 {White props up d4.}
+Nc6 {Knight out. It attacks d4 too.}
+5.c3 Qb6` },
     ],
   },
   qg: {
@@ -752,6 +825,8 @@ const FAMILIES = {
   swap: { name: "White swaps", color: "#2f7fd1" },
   attack: { name: "White attacks d5", color: "#7a5ae0" },
   rare: { name: "Rare tries", color: "#d14f8a" },
+  dfour: { name: "White starts with d4", color: "#0f8b8d" },
+  london: { name: "White's bishop comes out early", color: "#e07a1f" },
   hold: { name: "Black holds with e6", color: "#2f9e5b" },
   slav: { name: "Black holds with c6", color: "#2f7fd1" },
   takes: { name: "Black takes the pawn", color: "#e07a1f" },
@@ -783,9 +858,23 @@ const QG_RUNS = [
   { id: "qg-all", name: "Everything", family: "start", all: true },
 ];
 
+const D4_RUNS = [ // the Caro-Kann player's answer to 1.d4 (the Slav and the London)
+  { id: "d4-first", name: "White starts with d4", family: "dfour", cues: ["d4", "d4 d5 c4", "d4 d5 Bf4", "d4 d5 Nf3", "d4 d5 c4 c6 Nf3", "d4 d5 c4 c6 Nc3", "d4 d5 c4 c6 cxd5"] },
+  { id: "d4-slav", name: "White attacks with c4", family: "attack", cues: ["d4 d5 c4 c6 Nf3 Nf6 Nc3", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4 Bb4 O-O", "d4 d5 Nf3 Nf6 c4"] },
+  { id: "d4-quiet", name: "Quiet moves and swaps", family: "swap", cues: ["d4 d5 c4 c6 Nf3 Nf6 e3", "d4 d5 c4 c6 Nf3 Nf6 e3 Bf5 Nc3", "d4 d5 c4 c6 Nf3 Nf6 e3 Bf5 Nc3 e6 Nh4", "d4 d5 c4 c6 Nf3 Nf6 e3 Bf5 Nc3 e6 Nh4 Bg6 Nxg6", "d4 d5 c4 c6 cxd5 cxd5 Nc3", "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bf4", "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bf4 Nc6 e3", "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bf4 Nc6 e3 Bf5 Nf3"] },
+  { id: "d4-london", name: "The London", family: "london", cues: ["d4 d5 Bf4 c5 e3", "d4 d5 Bf4 c5 e3 Nc6 Nf3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3 Qb6 Qb3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3 Qb6 Qb3 c4 Qc2", "d4 d5 Nf3 Nf6 Bf4", "d4 d5 Nf3 Nf6 Bf4 c5 e3"] },
+  { id: "d4-all", name: "Everything", family: "dfour", all: true },
+];
+
 // White's choice → family, so the duel can flash the right color
-function familyOf(sans) {
+function familyOf(sans, op = "caro") {
   const s = sans.join(" ");
+  if (op === "caro" && s.startsWith("d4")) {
+    if (/^d4 d5 (Nf3 Nf6 )?Bf4/.test(s)) return "london";
+    if (s.startsWith("d4 d5 c4 c6 cxd5")) return "swap";
+    if (/^d4 d5 (Nf3 Nf6 )?c4/.test(s)) return "attack";
+    return "dfour";
+  }
   if (s.startsWith("d4")) {
     if (/^d4 d5 c4 (e5|e6 Nc3 c5)/.test(s)) return "rare";
     if (s.startsWith("d4 d5 c4 dxc4")) return "takes";
@@ -2169,15 +2258,21 @@ const SND = {
 document.addEventListener("pointerdown", () => SND.init(), { once: true });
 
 // Two paths: the Caro-Kann (you're Black) and the Queen's Gambit (you're White). Each has its own runs.
-const PATHS = { caro: { name: "Caro-Kann", you: "b", runs: RUNS }, qg: { name: "Queen's Gambit", you: "w", runs: QG_RUNS } };
-const DECKS = { caro: duelCards("caro"), qg: duelCards("qg") };
-const DUEL = { cards: { ...DECKS.caro.cards, ...DECKS.qg.cards } };
+const PATHS = {
+  caro: { name: "Caro-Kann", tab: "Caro-Kann", you: "b", runs: RUNS },
+  slav: { name: "Caro-Kann vs d4", tab: "Against d4", you: "b", runs: D4_RUNS },
+  qg: { name: "Queen's Gambit", tab: "Queen's Gambit", you: "w", runs: QG_RUNS },
+};
+const split = (deck, keep) => { const order = deck.order.filter(k => keep(deck.cards[k])); return { order, cards: Object.fromEntries(order.map(k => [k, deck.cards[k]])) }; };
+const CARO = duelCards("caro"); // the Caro-Kann answers to 1.e4, and to 1.d4 (the Slav and the London)
+const DECKS = { caro: split(CARO, c => c.sans[0] !== "d4"), slav: split(CARO, c => c.sans[0] === "d4"), qg: duelCards("qg") };
+const DUEL = { cards: { ...CARO.cards, ...DECKS.qg.cards } };
 for (const k in PATHS) PATHS[k].runs.forEach(r => r.path = k);
 const path = () => PATHS[S.duel.path] ? S.duel.path : "caro";
 const runsNow = () => PATHS[path()].runs;
 const HEARTS = 3, CLEARS = 3;
 const keyOf = sans => { const g = new Chess(); (sans ? sans.split(" ") : []).forEach(m => g.move(m)); return fenKey(g.fen()); };
-const RUN_CARDS = Object.fromEntries([...RUNS, ...QG_RUNS].map(r => [r.id, r.all ? DECKS[r.path].order.slice() : r.cues.map(keyOf)]));
+const RUN_CARDS = Object.fromEntries([...RUNS, ...D4_RUNS, ...QG_RUNS].map(r => [r.id, r.all ? DECKS[r.path].order.slice() : r.cues.map(keyOf)]));
 const D = { view: "home", run: null, queue: [], state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, want: null, last: null, shown: null, chip: null, caption: "", sub: "", tok: 0, timers: [], t0: 0, T: 0, record: false, cleared: false, opened: null };
 let duelBoard;
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
@@ -2255,7 +2350,7 @@ async function nextRound() {
     duelBoard.set({ fen: g.fen(), orientation: D.side, last: D.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
     SND.play("throw");
   } else duelBoard.set({ fen: g.fen(), orientation: D.side });
-  const fam = familyOf(card.sans); D.chip = fam !== "start" ? fam : null;
+  const fam = familyOf(card.sans, D.run.path === "qg" ? "qg" : "caro"); D.chip = fam !== "start" ? fam : null;
   D.want = new Chess(g.fen()).move(card.main);
   if (D.isNew) { D.state = "new"; showGhost(); D.caption = "New move. Copy it."; D.sub = shortComment(card.why); }
   else { D.state = "go"; D.caption = "Your move!"; D.sub = ""; startTimer(); }
@@ -2337,7 +2432,7 @@ function renderLearn() {
     const i = D.pick, r = RS[i], pr = rst(r.id), n = RUN_CARDS[r.id].length, k = open.indexOf(i);
     const prev = open[k - 1], next = open[k + 1];
     v.innerHTML = `<div class="duel-home">
-      <div class="seg path-seg" role="group" aria-label="Opening">${Object.entries(PATHS).map(([k, p]) => `<button data-path="${k}" class="${k === path() ? "on" : ""}">${esc(p.name)}</button>`).join("")}</div>
+      <div class="seg path-seg" role="group" aria-label="Opening">${Object.entries(PATHS).map(([k, p]) => `<button data-path="${k}" class="${k === path() ? "on" : ""}">${esc(p.tab)}</button>`).join("")}</div>
       ${S.duel.played ? "" : `<p class="cap">${P0.you === "b" ? "White moves. You answer" : "Black moves. You answer"} before time runs out.</p><p class="capsub">Clear each run ${CLEARS} times to open the next one.</p>`}
       <div class="run-card" style="--fam:${FAMILIES[r.family].color}">
         <p class="run-name">${esc(r.name)}</p>
