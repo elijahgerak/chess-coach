@@ -143,6 +143,78 @@ e6 {Play it safe. Next your bishop comes out and c5 hits the middle.}
 4.Nc3
 Bb4 {Your bishop attacks the knight that protects e4.}
 ` },
+      { name: "Against d4: Slav", weight: 3, pgn: `
+1.d4 {White starts with the queen's pawn.}
+d5 {Take your share of the middle, same as against e4.}
+2.c4 {White attacks your pawn on d5 from the side.}
+c6 {Guard d5 with a pawn. That's the Caro-Kann idea again.}
+3.Nf3 {White brings out a knight.}
+Nf6 {Knight out. It guards d5 too.}
+4.Nc3 {White attacks d5 again.}
+dxc4 {Take the pawn. White has to spend time winning it back.}
+5.a4 {White stops you from holding the pawn with b5.}
+Bf5 {Bishop out before e6, just like in the Caro-Kann.}
+6.e3 {White gets ready to take back on c4.}
+e6 {Now close the wall. Your bishop is already out.}
+7.Bxc4 {White wins the pawn back.}
+Bb4 {Bishop out. It pins White's knight to the king.}
+8.O-O {White castles.}
+O-O {Castle. Your king is safe.}` },
+      { name: "Against d4: Slav, knight first", weight: 1, pgn: `
+1.d4 d5 2.c4 c6
+3.Nc3 {White brings out the other knight first.}
+Nf6 {Knight out. It guards d5.}
+4.Nf3 dxc4 5.a4 Bf5` },
+      { name: "Against d4: Slav, quiet e3", weight: 1, pgn: `
+1.d4 d5 2.c4 c6 3.Nf3 Nf6
+4.e3 {White quietly guards c4 and d4.}
+Bf5 {Bishop out before e6.}
+5.Nc3 {White brings out the other knight.}
+e6 {Close the wall now.}
+6.Nh4 {The knight chases your bishop.}
+Bg6 {Step back. Your bishop stays outside the wall.}
+7.Nxg6 {White takes your bishop.}
+hxg6 {Take back. Your rook gets room on the side.}` },
+      { name: "Against d4: White swaps on d5", weight: 2, pgn: `
+1.d4 d5 2.c4 c6
+3.cxd5 {White swaps pawns in the middle.}
+cxd5 {Take back with the side pawn. Now it stands in the middle.}
+4.Nc3 {White attacks d5.}
+Nf6 {Knight out. It guards d5.}
+5.Bf4 {White brings out a bishop.}
+Nc6 {Other knight out.}
+6.e3 {White opens a path for the other bishop.}
+Bf5 {Bishop out, before e6.}
+7.Nf3 {White brings out the last knight.}
+e6 {Close the wall. Your bishop is already out.}` },
+      { name: "Against d4: London", weight: 2, pgn: `
+1.d4 d5
+2.Bf4 {White brings a bishop out early. This is called the London.}
+c5 {Hit the pawn on d4 right away.}
+3.e3 {White props up d4.}
+Nc6 {Knight out. It attacks d4 too.}
+4.Nf3 {White guards d4 with a knight.}
+Nf6 {Other knight out.}
+5.c3 {White guards d4 with another pawn.}
+Qb6 {Queen out. She attacks the pawn on b2, which White's bishop left behind.}
+6.Qb3 {White blocks with the queen.}
+c4 {Push past. Now White's queen has to move.}
+7.Qc2 {The queen steps back.}
+Bf5 {Bishop out, and it attacks White's queen.}` },
+      { name: "Against d4: knight first", weight: 1, pgn: `
+1.d4 d5
+2.Nf3 {White brings out a knight first.}
+Nf6 {Knight out too.}
+3.c4 {White attacks d5 from the side.}
+c6 {Guard d5 with a pawn, the Caro-Kann way.}
+4.Nc3 dxc4` },
+      { name: "Against d4: knight, then London", weight: 1, pgn: `
+1.d4 d5 2.Nf3 Nf6
+3.Bf4 {White brings the bishop out: the London again.}
+c5 {Hit the pawn on d4 right away.}
+4.e3 {White props up d4.}
+Nc6 {Knight out. It attacks d4 too.}
+5.c3 Qb6` },
     ],
   },
   qg: {
@@ -363,6 +435,8 @@ const FAMILIES = {
   swap: { name: "White swaps", color: "#2f7fd1" },
   attack: { name: "White attacks d5", color: "#7a5ae0" },
   rare: { name: "Rare tries", color: "#d14f8a" },
+  dfour: { name: "White starts with d4", color: "#0f8b8d" },
+  london: { name: "White's bishop comes out early", color: "#e07a1f" },
   hold: { name: "Black holds with e6", color: "#2f9e5b" },
   slav: { name: "Black holds with c6", color: "#2f7fd1" },
   takes: { name: "Black takes the pawn", color: "#e07a1f" },
@@ -394,9 +468,23 @@ const QG_RUNS = [
   { id: "qg-all", name: "Everything", family: "start", all: true },
 ];
 
+const D4_RUNS = [ // the Caro-Kann player's answer to 1.d4 (the Slav and the London)
+  { id: "d4-first", name: "White starts with d4", family: "dfour", cues: ["d4", "d4 d5 c4", "d4 d5 Bf4", "d4 d5 Nf3", "d4 d5 c4 c6 Nf3", "d4 d5 c4 c6 Nc3", "d4 d5 c4 c6 cxd5"] },
+  { id: "d4-slav", name: "White attacks with c4", family: "attack", cues: ["d4 d5 c4 c6 Nf3 Nf6 Nc3", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4", "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4 Bb4 O-O", "d4 d5 Nf3 Nf6 c4"] },
+  { id: "d4-quiet", name: "Quiet moves and swaps", family: "swap", cues: ["d4 d5 c4 c6 Nf3 Nf6 e3", "d4 d5 c4 c6 Nf3 Nf6 e3 Bf5 Nc3", "d4 d5 c4 c6 Nf3 Nf6 e3 Bf5 Nc3 e6 Nh4", "d4 d5 c4 c6 Nf3 Nf6 e3 Bf5 Nc3 e6 Nh4 Bg6 Nxg6", "d4 d5 c4 c6 cxd5 cxd5 Nc3", "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bf4", "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bf4 Nc6 e3", "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bf4 Nc6 e3 Bf5 Nf3"] },
+  { id: "d4-london", name: "The London", family: "london", cues: ["d4 d5 Bf4 c5 e3", "d4 d5 Bf4 c5 e3 Nc6 Nf3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3 Qb6 Qb3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3 Qb6 Qb3 c4 Qc2", "d4 d5 Nf3 Nf6 Bf4", "d4 d5 Nf3 Nf6 Bf4 c5 e3"] },
+  { id: "d4-all", name: "Everything", family: "dfour", all: true },
+];
+
 // White's choice → family, so the duel can flash the right color
-function familyOf(sans) {
+function familyOf(sans, op = "caro") {
   const s = sans.join(" ");
+  if (op === "caro" && s.startsWith("d4")) {
+    if (/^d4 d5 (Nf3 Nf6 )?Bf4/.test(s)) return "london";
+    if (s.startsWith("d4 d5 c4 c6 cxd5")) return "swap";
+    if (/^d4 d5 (Nf3 Nf6 )?c4/.test(s)) return "attack";
+    return "dfour";
+  }
   if (s.startsWith("d4")) {
     if (/^d4 d5 c4 (e5|e6 Nc3 c5)/.test(s)) return "rare";
     if (s.startsWith("d4 d5 c4 dxc4")) return "takes";

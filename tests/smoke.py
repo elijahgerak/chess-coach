@@ -114,6 +114,13 @@ async def main():
         if await page.evaluate("() => getComputedStyle(document.querySelector('.tabs')).display") != "none": fails.append("tabs should hide during a run")
         await page.click("#duel-quit"); await page.wait_for_timeout(200)
         if await page.evaluate("() => getComputedStyle(document.querySelector('.tabs')).display") == "none": fails.append("tabs should come back after a run")
+        # Against d4: you're Black, the first answer is 1...d5
+        await page.click('[data-path="slav"]'); await page.wait_for_timeout(200)
+        if "White starts with d4" not in await page.inner_text(".run-card"): fails.append("Against d4 should start at 'White starts with d4'")
+        await page.click(".btn.go"); await wait_state(page, ["new"])
+        if await page.evaluate("() => [D.side, D.card.main].join()") != "b,d5": fails.append("Against d4 should be Black answering 1.d4 with d5")
+        await page.click("#duel-quit"); await page.wait_for_timeout(200)
+        await page.screenshot(path=os.path.join(OUT, "8-against-d4.png"))
         await page.click('[data-path="caro"]'); await page.wait_for_timeout(200)
 
         # Reset history wipes progress

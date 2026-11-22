@@ -5,7 +5,7 @@ const { Chess } = require("chess.js");
 global.Chess = Chess;
 const src = f => fs.readFileSync(path.join(__dirname, "..", "src", f), "utf8");
 const app = new Function("Chess", src("data.js") + src("core.js") +
-  "\nreturn { REPERTOIRE, FAMILIES, RUNS, QG_RUNS, familyOf, duelCards, fenKey, PLANS, TRAPS, GOALS, explainMove, bookAt, detectStructure, goalsFor, boardMap, parsePgnText, principleFor, winPct, toCp };")(Chess);
+  "\nreturn { REPERTOIRE, FAMILIES, RUNS, QG_RUNS, D4_RUNS, familyOf, duelCards, fenKey, PLANS, TRAPS, GOALS, explainMove, bookAt, detectStructure, goalsFor, boardMap, parsePgnText, principleFor, winPct, toCp };")(Chess);
 
 function engine() {
   const sf = require(path.join(__dirname, "..", "vendor", "stockfish", "stockfish-19-lite-single.js"))();

@@ -1,6 +1,6 @@
 // Every repertoire line, duel card and trap must be legal chess.
 const { app, Chess } = require("./lib");
-const { REPERTOIRE, FAMILIES, RUNS, QG_RUNS, familyOf, duelCards, fenKey, TRAPS, PLANS, parsePgnText } = app;
+const { REPERTOIRE, FAMILIES, RUNS, QG_RUNS, D4_RUNS, familyOf, duelCards, fenKey, TRAPS, PLANS, parsePgnText } = app;
 let fail = 0;
 const bad = msg => { fail++; console.log("FAIL", msg); };
 for (const [key, op] of Object.entries(REPERTOIRE))
@@ -10,7 +10,7 @@ for (const [key, op] of Object.entries(REPERTOIRE))
   }
 if (Object.keys(REPERTOIRE).join() !== "caro,qg") bad("the repertoire should be the Caro-Kann and the Queen's Gambit");
 let total = 0;
-for (const [op, runs, first] of [["caro", RUNS, "c6"], ["qg", QG_RUNS, "d4"]]) {
+for (const [op, runs, first] of [["caro", [...RUNS, ...D4_RUNS], "c6"], ["qg", QG_RUNS, "d4"]]) {
   const deck = duelCards(op), you = REPERTOIRE[op].you; total += deck.order.length;
   if (deck.order.length < 30) bad(`${op} duel: only ${deck.order.length} cards`);
   if (deck.cards[deck.order[0]].main !== first) bad(`${op} duel: the first answer should be ${first}`);
@@ -22,7 +22,7 @@ for (const [op, runs, first] of [["caro", RUNS, "c6"], ["qg", QG_RUNS, "d4"]]) {
     for (const a of c.answers) if (!new Chess(g.fen()).move(a)) bad(`duel ${c.sans.join(" ")}: answer ${a} illegal`);
     if (c.parent && !deck.cards[c.parent]) bad(`duel ${c.sans.join(" ")}: parent missing`);
     if (c.parent && deck.cards[c.parent].depth >= c.depth) bad(`duel ${c.sans.join(" ")}: parent should come earlier`);
-    if (!FAMILIES[familyOf(c.sans)]) bad(`duel ${c.sans.join(" ")}: no family`);
+    if (!FAMILIES[familyOf(c.sans, op)]) bad(`duel ${c.sans.join(" ")}: no family`);
   }
   // every card sits in exactly one run
   const inRun = {};
