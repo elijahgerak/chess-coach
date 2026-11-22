@@ -567,17 +567,18 @@ const PATHS = {
   caro: { name: "Caro-Kann", tab: "Caro-Kann", you: "b", runs: RUNS },
   slav: { name: "Caro-Kann vs d4", tab: "Against d4", you: "b", runs: D4_RUNS },
   qg: { name: "Queen's Gambit", tab: "Queen's Gambit", you: "w", runs: QG_RUNS },
+  rules: { name: "Principles", tab: "Principles", you: "w", runs: PRINCIPLE_RUNS },
 };
 const split = (deck, keep) => { const order = deck.order.filter(k => keep(deck.cards[k])); return { order, cards: Object.fromEntries(order.map(k => [k, deck.cards[k]])) }; };
 const CARO = duelCards("caro"); // the Caro-Kann answers to 1.e4, and to 1.d4 (the Slav and the London)
-const DECKS = { caro: split(CARO, c => c.sans[0] !== "d4"), slav: split(CARO, c => c.sans[0] === "d4"), qg: duelCards("qg") };
-const DUEL = { cards: { ...CARO.cards, ...DECKS.qg.cards } };
+const DECKS = { caro: split(CARO, c => c.sans[0] !== "d4"), slav: split(CARO, c => c.sans[0] === "d4"), qg: duelCards("qg"), rules: principleCards() };
+const DUEL = { cards: { ...CARO.cards, ...DECKS.qg.cards, ...DECKS.rules.cards } };
 for (const k in PATHS) PATHS[k].runs.forEach(r => r.path = k);
 const path = () => PATHS[S.duel.path] ? S.duel.path : "caro";
 const runsNow = () => PATHS[path()].runs;
 const HEARTS = 3, CLEARS = 3;
 const keyOf = sans => { const g = new Chess(); (sans ? sans.split(" ") : []).forEach(m => g.move(m)); return fenKey(g.fen()); };
-const RUN_CARDS = Object.fromEntries([...RUNS, ...D4_RUNS, ...QG_RUNS].map(r => [r.id, r.all ? DECKS[r.path].order.slice() : r.cues.map(keyOf)]));
+const RUN_CARDS = Object.fromEntries([...RUNS, ...D4_RUNS, ...QG_RUNS, ...PRINCIPLE_RUNS].map(r => [r.id, r.all ? DECKS[r.path].order.slice() : r.cards ? r.cards.map(c => keyOf(c.moves)) : r.cues.map(keyOf)]));
 const D = { view: "home", run: null, queue: [], state: "idle", round: 0, hearts: HEARTS, score: 0, combo: 0, bestCombo: 0, newOnes: 0, key: null, card: null, g: null, want: null, last: null, shown: null, chip: null, caption: "", sub: "", tok: 0, timers: [], t0: 0, T: 0, record: false, cleared: false, opened: null };
 let duelBoard;
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
@@ -655,7 +656,7 @@ async function nextRound() {
     duelBoard.set({ fen: g.fen(), orientation: D.side, last: D.last, check: kingSq(g), animate: { from: m.from, to: m.to } });
     SND.play("throw");
   } else duelBoard.set({ fen: g.fen(), orientation: D.side });
-  const fam = familyOf(card.sans, D.run.path === "qg" ? "qg" : "caro"); D.chip = fam !== "start" ? fam : null;
+  const fam = card.fam || familyOf(card.sans, D.run.path === "qg" ? "qg" : "caro"); D.chip = fam !== "start" ? fam : null;
   D.want = new Chess(g.fen()).move(card.main);
   if (D.isNew) { D.state = "new"; showGhost(); D.caption = "New move. Copy it."; D.sub = shortComment(card.why); }
   else { D.state = "go"; D.caption = "Your move!"; D.sub = ""; startTimer(); }
@@ -738,6 +739,7 @@ function renderLearn() {
     const prev = open[k - 1], next = open[k + 1];
     v.innerHTML = `<div class="duel-home">
       <div class="seg path-seg" role="group" aria-label="Opening">${Object.entries(PATHS).map(([k, p]) => `<button data-path="${k}" class="${k === path() ? "on" : ""}">${esc(p.tab)}</button>`).join("")}</div>
+      ${path() === "rules" ? `<p class="capsub">${esc(r.rule || "Every rule you've learned, mixed.")}</p>` : ""}
       ${S.duel.played ? "" : `<p class="cap">${P0.you === "b" ? "White moves. You answer" : "Black moves. You answer"} before time runs out.</p><p class="capsub">Clear each run ${CLEARS} times to open the next one.</p>`}
       <div class="run-card" style="--fam:${FAMILIES[r.family].color}">
         <p class="run-name">${esc(r.name)}</p>

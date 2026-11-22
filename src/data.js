@@ -436,6 +436,12 @@ const FAMILIES = {
   attack: { name: "White attacks d5", color: "#7a5ae0" },
   rare: { name: "Rare tries", color: "#d14f8a" },
   dfour: { name: "White starts with d4", color: "#0f8b8d" },
+  "r-free": { name: "Take free pieces", color: "#2f9e5b" },
+  "r-out": { name: "Bring your pieces out", color: "#2f7fd1" },
+  "r-castle": { name: "Castle early", color: "#7a5ae0" },
+  "r-middle": { name: "Take the middle", color: "#0f8b8d" },
+  "r-save": { name: "Move attacked pieces", color: "#e07a1f" },
+  "r-checks": { name: "Look for checks first", color: "#d14f8a" },
   london: { name: "White's bishop comes out early", color: "#e07a1f" },
   hold: { name: "Black holds with e6", color: "#2f9e5b" },
   slav: { name: "Black holds with c6", color: "#2f7fd1" },
@@ -475,6 +481,64 @@ const D4_RUNS = [ // the Caro-Kann player's answer to 1.d4 (the Slav and the Lon
   { id: "d4-london", name: "The London", family: "london", cues: ["d4 d5 Bf4 c5 e3", "d4 d5 Bf4 c5 e3 Nc6 Nf3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3 Qb6 Qb3", "d4 d5 Bf4 c5 e3 Nc6 Nf3 Nf6 c3 Qb6 Qb3 c4 Qc2", "d4 d5 Nf3 Nf6 Bf4", "d4 d5 Nf3 Nf6 Bf4 c5 e3"] },
   { id: "d4-all", name: "Everything", family: "dfour", all: true },
 ];
+
+// ===== Principles: one rule per run. You're White; answers are Stockfish-approved moves that follow the rule.
+const PRINCIPLE_RUNS = [
+  { id: "r-free", name: "Take free pieces", family: "r-free", rule: "If something is free, take it.", cards: [
+    { moves: "e4 e5 Nf3 Qh4", answers: ["Nxh4"], why: "Their queen walked next to your knight with nothing guarding it. Take it." },
+    { moves: "e4 Nf6 Nc3 Ng4", answers: ["Qxg4"], why: "Their knight on g4 has no guard. Your queen takes it for free." },
+    { moves: "d4 Nf6 Nf3 Ne4 Nc3 Ng5", answers: ["Bxg5", "Nxg5"], why: "Their knight stopped where nothing guards it. Take it." },
+    { moves: "e4 b5", answers: ["Bxb5"], why: "That pawn has no guard. Your bishop takes it." },
+    { moves: "d4 e5", answers: ["dxe5"], why: "Nothing guards that pawn. Take it." },
+  ] },
+  { id: "r-out", name: "Bring your pieces out", family: "r-out", rule: "Get knights and bishops off the back row early.", cards: [
+    { moves: "e4 e5", answers: ["Nf3", "Nc3"], why: "Bring a knight out. It also attacks the pawn on e5." },
+    { moves: "e4 e5 Nf3 Nc6", answers: ["Bc4", "Bb5"], why: "Bring a bishop out. It aims at their weakest pawn on f7." },
+    { moves: "d4 Nf6 c4 e6", answers: ["Nc3", "Nf3", "Bf4", "Bg5"], why: "Bring a knight out toward the middle." },
+    { moves: "e4 c5", answers: ["Nf3", "Nc3", "Ne2"], why: "Bring a knight out before moving more pawns." },
+    { moves: "d4 d5 c4 e6", answers: ["Nc3", "Nf3"], why: "Knight out. It adds pressure on d5." },
+  ] },
+  { id: "r-castle", name: "Castle early", family: "r-castle", rule: "Castle early. It hides your king and brings a rook toward the middle.", cards: [
+    { moves: "e4 e5 Nf3 Nc6 Bc4 Bc5", answers: ["O-O"], why: "Your king is still in the middle. Castle." },
+    { moves: "e4 e5 Nf3 Nc6 Bb5 Nf6", answers: ["O-O"], why: "Pieces are out. Now hide your king." },
+    { moves: "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 Be7", answers: ["O-O"], why: "The way is clear. Castle before the middle opens." },
+    { moves: "d4 Nf6 Nf3 g6 g3 Bg7 Bg2 O-O", answers: ["O-O"], why: "Your bishop and knight are out. Castle." },
+    { moves: "e4 c5 Nf3 d6 Bb5+ Bd7 Bxd7+ Qxd7", answers: ["O-O"], why: "Your king can hide right now. Do it." },
+  ] },
+  { id: "r-middle", name: "Take the middle", family: "r-middle", rule: "Put pawns in the middle. They give your pieces room.", cards: [
+    { moves: "", answers: ["e4", "d4"], why: "Start with a pawn in the middle." },
+    { moves: "e4 g6", answers: ["d4"], why: "Black left the middle to you. Put a second pawn there." },
+    { moves: "e4 b6", answers: ["d4"], why: "Two pawns in the middle give your pieces room." },
+    { moves: "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6", answers: ["d4"], why: "You got c3 ready for this. Push into the middle." },
+    { moves: "e4 Nc6", answers: ["d4"], why: "Grab the middle while Black isn't fighting for it." },
+  ] },
+  { id: "r-save", name: "Move attacked pieces", family: "r-save", rule: "When a piece is attacked, move it or guard it.", cards: [
+    { moves: "e4 e5 Nf3 Nc6 Bb5 a6", answers: ["Ba4", "Bxc6"], why: "The pawn attacks your bishop. Step back, still aiming at the knight." },
+    { moves: "d4 Nf6 Bg5 Ne4", answers: ["Bf4", "Be3", "h4"], why: "The knight attacks your bishop. Move it to safety." },
+    { moves: "d4 d5 Nf3 Nf6 Bf4 Nh5", answers: ["Bg5", "Bd2", "Bc1", "Be3", "Be5"], why: "Your bishop is attacked. Move it somewhere safe." },
+    { moves: "e4 e5 Qh5 Nc6 Bc4 g6", answers: ["Qf3", "Qd1", "Qe2"], why: "The pawn attacks your queen. Move her, and keep an eye on f7." },
+    { moves: "e4 e5 Bc4 Nf6 d3 b5", answers: ["Bxb5"], why: "The pawn attacks your bishop, but it's unguarded. Take it." },
+  ] },
+  { id: "r-checks", name: "Look for checks first", family: "r-checks", rule: "Before every move, look at every check and capture.", cards: [
+    { moves: "e4 e5 Bc4 Nc6 Qh5 Nf6", answers: ["Qxf7#"], why: "Take on f7 with check. The king has nowhere to go: checkmate." },
+    { moves: "e4 g5 d4 f6", answers: ["Qh5#"], why: "The queen checks the king and nothing can block. Checkmate." },
+    { moves: "e4 e5 Nf3 Nf6 Nxe5 Nxe4 Qe2 Nf6", answers: ["Nc6+"], why: "Knight jumps away with check, and your queen now attacks theirs." },
+    { moves: "e4 e5 Nf3 d6 Bc4 Bg4 Nc3 g6 Nxe5 Bxd1", answers: ["Bxf7+"], why: "Check first! Two more checks and it's checkmate." },
+    { moves: "e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 Nxe4", answers: ["Bxf7+"], why: "Take with check. The king has to move and loses the right to castle." },
+  ] },
+  { id: "r-all", name: "Everything", family: "start", all: true },
+];
+// The principle cards in the same shape as duelCards() gives for an opening
+function principleCards() {
+  const cards = {}, order = [];
+  for (const r of PRINCIPLE_RUNS) for (const c of r.cards || []) {
+    const sans = c.moves ? c.moves.split(" ") : []; const g = new Chess(); sans.forEach(m => g.move(m));
+    const key = fenKey(g.fen());
+    cards[key] = { key, sans, cue: sans.length ? sans[sans.length - 1] : null, answers: c.answers, main: c.answers[0], why: c.why, parent: null, depth: sans.length, fam: r.family, rule: r.rule };
+    order.push(key);
+  }
+  return { cards, order };
+}
 
 // White's choice → family, so the duel can flash the right color
 function familyOf(sans, op = "caro") {
