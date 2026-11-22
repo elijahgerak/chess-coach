@@ -669,6 +669,26 @@ function startTimer() {
   const t = $("#duel-timer"); if (t) { t.classList.remove("run", "stop"); t.style.setProperty("--T", D.T + "ms"); void t.offsetWidth; t.classList.add("run"); }
   later(() => { if (D.state === "go") miss("slow"); }, D.T);
 }
+// Pause: the bottom-left button (or leaving the app). Everything stops; Keep going picks up where you were.
+const PAUSE_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>`;
+const PLAY_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l10.4-6.5a1 1 0 0 0 0-1.74L9.5 4.63A1 1 0 0 0 8 5.5z"/></svg>`;
+function pauseRun() {
+  if (D.view !== "run" || D.state === "paused" || D.state === "over") return;
+  stopTimer(); clearDuel(); duelBoard && duelBoard.clearGhost();
+  D.resume = D.state; D.state = "paused"; renderPauseState(); renderDuelPanel(true);
+}
+function resumeRun() {
+  if (D.state !== "paused") return;
+  const was = D.resume; D.state = was; renderPauseState();
+  if (was === "go") { D.caption = "Your move!"; renderDuelPanel(true); startTimer(); }
+  else if (was === "new" || was === "fix") { showGhost(); renderDuelPanel(true); }
+  else { if (was === "zip") D.round--; nextRound(); } // mid-replay: replay that round; between rounds: go on
+}
+function renderPauseState() {
+  const on = D.state === "paused", b = $("#duel-pause"), bd = $("#duel-board");
+  if (b) { b.innerHTML = on ? PLAY_ICON : PAUSE_ICON; b.setAttribute("aria-label", on ? "Keep going" : "Pause"); }
+  if (bd) bd.classList.toggle("paused", on);
+}
 function stopTimer() { const t = $("#duel-timer"); if (t) t.classList.add("stop"); }
 function onDuelMove(mv) {
   if (!["go", "new", "fix"].includes(D.state)) return;
@@ -716,7 +736,7 @@ function copied() {
   renderDuelPanel(true); later(nextRound, wasNew ? 1300 : 1000);
 }
 function endRun() {
-  clearDuel(); D.state = "over"; const t = $("#duel-timer"); if (t) t.hidden = true;
+  clearDuel(); D.state = "over"; const f = $("#run-foot"); if (f) f.hidden = true;
   const pr = rst(D.run.id); D.cleared = D.hearts > 0;
   D.record = D.score > pr.best && pr.best > 0; pr.best = Math.max(pr.best, D.score);
   if (D.cleared && !D.run.all) { pr.clears++; if (pr.clears === CLEARS) { const rs = PATHS[D.run.path].runs; D.opened = rs[rs.indexOf(D.run) + 1] || null; } }
@@ -724,7 +744,7 @@ function endRun() {
   setTop(); renderHud(); renderDuelPanel(true);
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && D.state === "go") { stopTimer(); clearDuel(); D.state = "paused"; renderDuelPanel(); }
+  if (document.hidden) pauseRun();
 });
 
 function pipsHTML(n, fresh) { return `<span class="pips" aria-label="Cleared ${Math.min(n, CLEARS)} of ${CLEARS} times">${Array.from({ length: CLEARS }, (_, k) => `<i class="${k < n ? "on" : ""} ${fresh && k === n - 1 ? "new" : ""}"></i>`).join("")}</span>`; }
@@ -758,12 +778,14 @@ function renderLearn() {
   v.innerHTML = `<div class="live"><div class="main">
       <div class="hud"><span class="hearts" id="hearts"></span><span class="score" id="score"></span><button class="icon-btn" id="duel-quit" aria-label="Stop this run">${ICONS.close}</button></div>
       <div id="duel-board"></div>
-      <div class="timer" id="duel-timer"><i></i></div>
+      <div class="run-foot" id="run-foot"><button class="icon-btn" id="duel-pause" aria-label="Pause">${PAUSE_ICON}</button><div class="timer" id="duel-timer"><i></i></div></div>
     </div><div class="side"><div class="coach" id="duel-panel" aria-live="polite"></div></div></div>`;
   duelBoard = new Board(v.querySelector("#duel-board"), { coords: false, interactive: () => ["go", "new", "fix"].includes(D.state), onMove: m => onDuelMove(m) });
   if (D.g) duelBoard.set({ fen: D.g.fen(), orientation: D.side, last: D.last });
   else { duelBoard.set({ fen: new Chess().fen(), orientation: D.side }); D.shown = []; }
   v.querySelector("#duel-quit").onclick = quitRun; renderHud();
+  v.querySelector("#duel-pause").onclick = () => D.state === "paused" ? resumeRun() : pauseRun();
+  if (D.state === "over") v.querySelector("#run-foot").hidden = true;
   renderDuelPanel();
 }
 function renderHud(bump, hurt) {
@@ -802,7 +824,7 @@ function renderDuelPanel(anim) {
     if (a === "start") startRun(D.run);
     if (a === "next") startRun(D.opened);
     if (a === "home") quitRun();
-    if (a === "resume") { D.state = "go"; D.caption = "Your move!"; renderDuelPanel(); startTimer(); }
+    if (a === "resume") resumeRun();
   });
 }
 

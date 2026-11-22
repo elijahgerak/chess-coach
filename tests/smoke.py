@@ -130,6 +130,23 @@ async def main():
         await page.click("#duel-quit"); await page.wait_for_timeout(200)
         await page.click('[data-path="caro"]'); await page.wait_for_timeout(200)
 
+        # Pause: during a question the timer stops (no heart lost), during a replay it picks the round back up
+        await page.click('[data-path="caro"]'); await page.wait_for_timeout(150)
+        await page.evaluate("() => { Object.values(DUEL.cards).forEach(c => cst(c.key).seen = true); }")
+        await page.click(".btn.go"); await wait_state(page, ["go"])
+        hearts = await page.evaluate("() => D.hearts")
+        await page.click("#duel-pause"); await page.wait_for_timeout(4000)
+        if await page.evaluate("() => D.state") != "paused" or await page.evaluate("() => D.hearts") != hearts: fails.append("pause should stop the timer")
+        await page.screenshot(path=os.path.join(OUT, "10-paused.png"))
+        await page.click("#duel-pause"); await wait_state(page, ["go"])
+        await page.evaluate("() => onDuelMove({from: D.want.from, to: D.want.to})")
+        await wait_state(page, ["zip"]); await page.click("#duel-pause")
+        r = await page.evaluate("() => D.round"); await page.wait_for_timeout(1500)
+        if await page.evaluate("() => D.state") != "paused": fails.append("pause during a replay should hold")
+        await page.click('[data-d="resume"]'); await wait_state(page, ["go"])
+        if await page.evaluate("() => D.round") != r: fails.append("resuming a replay should replay the same round")
+        await page.click("#duel-quit"); await page.wait_for_timeout(200)
+
         # Reset history wipes progress
         await page.click("#open-settings"); await page.wait_for_timeout(300)
         await page.click("#reset"); await page.click("#reset"); await page.wait_for_timeout(1500)
