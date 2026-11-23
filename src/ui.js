@@ -585,7 +585,7 @@ const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1
 const LOCK = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Locked"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
 const cst = k => S.duel.cards[k] || (S.duel.cards[k] = { seen: false, ok: 0 });
 const rst = id => S.duel.progress[id] || (S.duel.progress[id] = { clears: 0, best: 0 });
-const runOpen = i => i === 0 || rst(runsNow()[i - 1].id).clears >= CLEARS;
+const runOpen = i => i === 0 || rst(runsNow()[i - 1].id).clears >= CLEARS || rst(runsNow()[i].id).clears > 0; // a run you already played stays open even if a new run is added before it
 const currentRun = () => runsNow().find((r, i) => runOpen(i) && !r.all && rst(r.id).clears < CLEARS) || runsNow()[runsNow().length - 1];
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function clearDuel() { D.tok++; D.timers.forEach(clearTimeout); D.timers = []; }

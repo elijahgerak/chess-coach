@@ -143,6 +143,50 @@ e6 {Play it safe. Next your bishop comes out and c5 hits the middle.}
 4.Nc3
 Bb4 {Your bishop attacks the knight that protects e4.}
 ` },
+      { name: "2.Nf3, then the swap", weight: 3, pgn: `
+1.e4 c6
+2.Nf3 {White brings a knight out instead of the d-pawn.}
+d5 {Same answer: put your pawn in the middle.}
+3.exd5 {White swaps pawns in the middle.}
+cxd5 {Take back with the c-pawn. It points toward the middle.}
+4.d4 {White puts a pawn in the middle.}
+Nf6 {Knight out. It guards d5.}
+5.Bd3 {White's bishop aims at your king's side.}
+Nc6 {Other knight out. It eyes d4.}
+6.c3 {White guards d4 with a pawn.}
+Bg4 {Bishop out before e6. It pins White's knight.}
+7.O-O {White castles.}
+e6 {Now close the wall. Your bishop is already out.}` },
+      { name: "2.Nf3, swap, bishop check", weight: 2, pgn: `
+1.e4 c6 2.Nf3 d5 3.exd5 cxd5
+4.Bb5+ {White checks your king with the bishop.}
+Bd7 {Block with your bishop and offer to swap.}
+5.Bxd7+ {White swaps bishops with check.}
+Nxd7 {Take back with the knight.}
+6.d4 {White puts a pawn in the middle.}
+Ngf6 {Other knight out.}
+7.O-O {White castles.}
+e6 {Close the wall and get ready to castle.}` },
+      { name: "2.Nf3, swap, c4", weight: 1, pgn: `
+1.e4 c6 2.Nf3 d5 3.exd5 cxd5
+4.c4 {White attacks d5 again from the side.}
+d4 {Push past. Your pawn grabs space and gets out of the attack.}
+5.d3 {White stops your pawn from going further.}
+Nc6 {Knight out. It guards your pawn on d4.}
+6.g3 {White gets the bishop ready to come out on the side.}
+Nf6 {Other knight out.}
+7.Bg2 {White's bishop comes out.}
+e5 {Back up your pawn on d4 with another pawn.}` },
+      { name: "2.Nf3, then e5", weight: 1, pgn: `
+1.e4 c6 2.Nf3 d5
+3.e5 {White pushes past your pawn.}
+Bf5 {Bishop out before e6, same as always.}
+4.d4 {White props up the pawn on e5.}
+e6 {Close the wall. Your bishop is already out.}` },
+      { name: "2.Nf3, then Nc3", weight: 1, pgn: `
+1.e4 c6 2.Nf3 d5
+3.Nc3 {White brings out the other knight.}
+Bg4` },
       { name: "Against d4: Slav", weight: 3, pgn: `
 1.d4 {White starts with the queen's pawn.}
 d5 {Take your share of the middle, same as against e4.}
@@ -435,6 +479,7 @@ const FAMILIES = {
   swap: { name: "White swaps", color: "#2f7fd1" },
   attack: { name: "White attacks d5", color: "#7a5ae0" },
   rare: { name: "Rare tries", color: "#d14f8a" },
+  knight: { name: "White brings a knight out", color: "#0f8b8d" },
   dfour: { name: "White starts with d4", color: "#0f8b8d" },
   "cb-bishop": { name: "Bishop out before e6", color: "#2f9e5b" },
   "cb-side": { name: "Hit the middle from the side", color: "#e07a1f" },
@@ -453,6 +498,8 @@ const FAMILIES = {
 // Clear a run 5 times (finish with a heart left) to open the next. Every card in the deck is in exactly one run.
 const RUNS = [
   { id: "first", name: "White's first moves", family: "start", cues: ["e4", "e4 c6 d4", "e4 c6 d4 d5 Nc3", "e4 c6 d4 d5 Nd2", "e4 c6 d4 d5 e5", "e4 c6 d4 d5 exd5"] },
+  { id: "knight", name: "White brings a knight out", family: "knight", cues: ["e4 c6 Nf3", "e4 c6 Nf3 d5 exd5", "e4 c6 Nf3 d5 exd5 cxd5 d4", "e4 c6 Nf3 d5 exd5 cxd5 d4 Nf6 Bd3", "e4 c6 Nf3 d5 exd5 cxd5 d4 Nf6 Bd3 Nc6 c3", "e4 c6 Nf3 d5 exd5 cxd5 d4 Nf6 Bd3 Nc6 c3 Bg4 O-O", "e4 c6 Nf3 d5 e5", "e4 c6 Nf3 d5 e5 Bf5 d4"] },
+  { id: "knight2", name: "Knight out, then a check or c4", family: "swap", cues: ["e4 c6 Nf3 d5 exd5 cxd5 Bb5+", "e4 c6 Nf3 d5 exd5 cxd5 Bb5+ Bd7 Bxd7+", "e4 c6 Nf3 d5 exd5 cxd5 Bb5+ Bd7 Bxd7+ Nxd7 d4", "e4 c6 Nf3 d5 exd5 cxd5 Bb5+ Bd7 Bxd7+ Nxd7 d4 Ngf6 O-O", "e4 c6 Nf3 d5 exd5 cxd5 c4", "e4 c6 Nf3 d5 exd5 cxd5 c4 d4 d3", "e4 c6 Nf3 d5 exd5 cxd5 c4 d4 d3 Nc6 g3", "e4 c6 Nf3 d5 exd5 cxd5 c4 d4 d3 Nc6 g3 Nf6 Bg2"] },
   { id: "protect", name: "White protects", family: "protect", cues: ["e4 c6 d4 d5 Nc3 dxe4 Nxe4", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5"] },
   { id: "protect2", name: "White protects, part 2", family: "protect", cues: ["e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3 Bxd3 Qxd3", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3 Bxd3 Qxd3 e6 Bd2", "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3 Bxd3 Qxd3 e6 Bd2 Ngf6 O-O-O", "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Bf5 Ng3 Bg6 N1e2", "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Bf5 Ng3 Bg6 N1e2 Nf6 Nf4"] },
   { id: "push", name: "White pushes", family: "push", cues: ["e4 c6 d4 d5 e5 Bf5 Nf3", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 c5 O-O", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 c5 O-O Nc6 c3", "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 c5 O-O Nc6 c3 cxd4 cxd4"] },
@@ -526,6 +573,9 @@ function familyOf(sans, op = "caro") {
     if (s.startsWith("d4 d5 c4 e6")) return "hold";
     return "start";
   }
+  if (s.startsWith("e4 c6 Nf3 d5 exd5")) return "swap";
+  if (s.startsWith("e4 c6 Nf3 d5 e5")) return "push";
+  if (s.startsWith("e4 c6 Nf3")) return "knight";
   if (s.startsWith("e4 c6 Nc3")) return "rare";
   if (/^e4 c6 d4 d5 (Nc3|Nd2)/.test(s)) return "protect";
   if (/^e4 c6 d4 d5 e5/.test(s)) return /e5 Bf5 (h4|Bd3|Nc3)/.test(s) ? "rare" : "push";
